@@ -1,0 +1,87 @@
+===============
+To think about next
+
+Renaming the variables
+    To be included in the Binomial/Decomposer rules
+
+Create a class for message to be returned:
+    Name: CountingFormula
+        This would be exact copy of the MLN class - whatever is not required.
+    Functions:
+        Sum out a Predicate
+        Add two CF
+        Multiply two CF
+        Multiply CF with scalar
+        get MAP Assignment
+            Todo: Decide on the data type of the assignment
+        reduce CF
+            merges various clauses if they can be merged
+
+        NOTE: Product of factors will be concatination of CF.
+              Addition will be weight addition after taking log.
+
+
+
+==========================
+Module Structures:
+
+Classes:
+
+Controller
+    MLN currentMLN;
+
+    void computeMLN(){
+        ApplyRule.getNextRuleToApply();
+        if(ru)
+    }
+
+
+
+Rule
+    Maps rule id to the type of rule to be applied.
+        eg  0 - No rule can be applied
+            1 - Decomposer
+            2 - Binomial on Sum Predicate
+    New Rules in futures should be added here.
+
+    HashMap<ruleid, Rule> allRules
+    RuleId              Unique identifier
+    RuleType            Binomial/Decomposer
+    PredicateType       Sum or MAP
+    Predicate           Predicate on which the rule is applied
+    List<Term>          List of terms on which the rule is being applied. eg in case of Decomposer
+
+ApplyRule
+    Rule getNextRuleToApply()
+        Will check what rule could be applied
+
+    List<MLN> applyRule(Rule)
+        Will call the rule selected
+        Creates a set of new MLNs
+        Returns a list of new MLNs
+
+
+Decomposer
+    applyDecomposer(MLN, Rule )
+
+
+Binomial
+
+MarginalMap
+
+Factor
+
+
+==============
+
+GrindingMill.ground()
+
+=====
+Single Occurrence rule:
+
+Let x' be an equivalence class on which we want to apply single occurrence.
+We can apply SO if there exists some z in x' st z also occurs in some MAP predicate.
+
+
+Code added at:
+    reduceToSubNetwork
