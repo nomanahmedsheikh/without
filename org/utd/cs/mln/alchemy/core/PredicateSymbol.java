@@ -11,23 +11,23 @@ public class PredicateSymbol {
 	public int parentId;
 	public String symbol;
 	public List<Integer> variable_types = new ArrayList<Integer>();
+	public Values values;
 	public boolean isOriginalSymbol;
 	public LogDouble pweight;
 	public LogDouble nweight;
 
 	public String printString;
 
-	// True : for MAP predicate, False: for marginal predicate
-	public boolean queryType;
 
 	public PredicateSymbol() {
 	}
 
-	public PredicateSymbol(int id_, String symbol_, List<Integer> var_types,
+	public PredicateSymbol(int id_, String symbol_, List<Integer> var_types, Values values_,
 			LogDouble pweight_, LogDouble nweight_) {
 		id = id_;
 		symbol = symbol_;
 		variable_types = var_types;
+		values = values_;
 		pweight = pweight_;
 		nweight = nweight_;
 		parentId = id;
@@ -38,7 +38,7 @@ public class PredicateSymbol {
 		}
 		printString += "_)";
 	}
-	
+
 	@Override
 	public int hashCode() {
 		final int prime = 31;

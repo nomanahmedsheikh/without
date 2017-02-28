@@ -1,7 +1,6 @@
 package org.utd.cs.mln.alchemy.core;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -10,8 +9,6 @@ import java.util.Set;
 import org.utd.cs.gm.core.LogDouble;
 import org.utd.cs.gm.utility.Pair;
 import org.utd.cs.mln.lmap.ClauseRoot;
-import org.utd.cs.mln.lmap.LiftedPTP;
-import org.utd.cs.mln.lmap.Node;
 
 
 public class WClause {
@@ -21,6 +18,7 @@ public class WClause {
 	public List<HyperCube> hyperCubes = new ArrayList<HyperCube>();
 	public ArrayList<ArrayList<Integer>> tuples = new ArrayList<ArrayList<Integer>>();
 	public List<Boolean> sign = new ArrayList<Boolean>(); // sign = true : negative, false : positive
+	public List<Integer> valTrue = new ArrayList<>(); // Stores the value for which atoms (without sign) becomes true
 	public LogDouble weight;
 	public boolean satisfied;
 	public ClauseRoot root = new ClauseRoot();

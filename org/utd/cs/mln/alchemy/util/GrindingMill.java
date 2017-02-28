@@ -173,7 +173,7 @@ public class GrindingMill {
 		List<Integer> var_types = new ArrayList<Integer>();
 		for(int i=0;i<symbol.variable_types.size();i++)
 			var_types.add(symbol.variable_types.get(i));
-		PredicateSymbol newSymbol = new PredicateSymbol(predicateId,symbol.symbol,var_types,symbol.pweight,symbol.nweight);
+		PredicateSymbol newSymbol = new PredicateSymbol(predicateId,symbol.symbol,var_types,symbol.values,symbol.pweight,symbol.nweight);
 		
 		predicateId++;
 		groundMln.symbols.add(newSymbol);

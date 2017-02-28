@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.utd.cs.mln.lmap.ClauseRoot;
-import org.utd.cs.mln.lmap.LiftedPTP;
 import org.utd.cs.mln.lmap.Node;
 
 import org.utd.cs.gm.utility.DeepCopyUtil;
@@ -28,25 +27,11 @@ public class MLN {
 	public List<WClause> clauses = new ArrayList<WClause>();
 	public List<Formula> formulas = new ArrayList<Formula>();
 	public double numSubNetworks = 1;
-	public ArrayList<ArrayList<Boolean>> validPredPos = new ArrayList<ArrayList<Boolean>>();
-	
+
 	public MLN(MLN mln){
-		LiftedPTP.numMLNs++;
-		for(WClause clause : mln.clauses){
+		for(WClause clause : mln.clauses) {
 			WClause newClause = MLN.create_new_clause(clause);
 			clauses.add(newClause);
-		}
-		for(int i  = 0  ; i <= LiftedPTP.maxPredId ; i++){
-			validPredPos.add(new ArrayList<Boolean>());
-		}
-		for(WClause clause : mln.clauses){
-			//clause.print();
-			for(Atom atom : clause.atoms){
-				int predId = atom.symbol.id;
-				for(int i = atom.terms.size() - 1 ; i >= 0 ; i--){
-					validPredPos.get(predId).add(mln.validPredPos.get(predId).get(i));
-				}
-			}
 		}
 	}
 
@@ -56,8 +41,6 @@ public class MLN {
 		new_clause.sign = new ArrayList<Boolean>(clause.sign);
 		new_clause.satisfied = clause.satisfied;
 		new_clause.weight = clause.weight;
-		new_clause.root = MLN.copyRoot(clause.root);
-		new_clause.hcCount = (ArrayList<Integer>)DeepCopyUtil.copy(clause.hcCount);
 		/*for(ArrayList<Integer> tuple : clause.tuples){
 			new_clause.tuples.add(new ArrayList<Integer>(tuple));
 		}*/
@@ -128,38 +111,6 @@ public class MLN {
 		return new_clause;
 	}
 
-	private static ClauseRoot copyRoot(ClauseRoot root) {
-		ClauseRoot newRoot = new ClauseRoot();
-		for(int phId = 0 ; phId < root.hyperCubesList.size() ; phId++){
-			ArrayList<HyperCube> hcList = new ArrayList<HyperCube>();
-			for(HyperCube hc : root.hyperCubesList.get(phId)){
-				hcList.add(hc);
-			}
-			newRoot.hyperCubesList.add(hcList);
-		}
-		newRoot.children.clear();
-		for(Node child : root.children){
-			Node newChild = copyChild(child);
-			newRoot.children.add(newChild);
-			newChild.rootParent = newRoot;
-		}
-		
-		return newRoot;
-	}
-
-	private static Node copyChild(Node child) {
-		Node newChild = new Node(LiftedPTP.maxPredId);
-		for(int predId = 0 ; predId <= LiftedPTP.maxPredId ; predId++){
-			ArrayList<ArrayList<Integer>> predPartialGroundings = child.partialGroundings.get(predId);
-			if(predPartialGroundings.size() > 0){
-				for(ArrayList<Integer>predPartialGrounding : predPartialGroundings){
-					newChild.partialGroundings.get(predId).add(new ArrayList<Integer>(predPartialGrounding));
-				}
-			}
-		}
-		newChild.placeHolderList = (Set<Integer>)DeepCopyUtil.copy(child.placeHolderList);
-		return newChild;
-	}
 
 	public static Atom create_new_atom(Atom atom) {
 		List<Term> terms = new ArrayList<Term>();
@@ -188,7 +139,7 @@ public class MLN {
 		List<Integer> var_types = new ArrayList<Integer>();
 		for(int i=0;i<symbol.variable_types.size();i++)
 			var_types.add(symbol.variable_types.get(i));
-		PredicateSymbol newSymbol = new PredicateSymbol(symbol.id,symbol.symbol,var_types,symbol.pweight,symbol.nweight);
+		PredicateSymbol newSymbol = new PredicateSymbol(symbol.id,symbol.symbol,var_types,symbol.values,symbol.pweight,symbol.nweight);
 		newSymbol.parentId = symbol.parentId;
 		return newSymbol;
 	}
@@ -380,7 +331,6 @@ public class MLN {
 	}
 
 	public MLN() {
-		LiftedPTP.numMLNs++;
 		max_predicate_id = (0);
 		maxDegree = (-1);
 	}
@@ -596,32 +546,5 @@ public class MLN {
 		}
 		*/
 
-
-	//===========================================
-	// Added for MarginalMAP
-	//===========================================
-
-	public void printMLN(){
-
-        for (int i = 0; i < this.clauses.size(); i++) {
-            
-        }
-        print(this.clauses,"");
-		printQuery();
-	}
-
-	public void printQuery(){
-		for (int i = 0; i < this.symbols.size() ; i++) {
-			System.out.print(this.symbols.get(i).symbol+"\t");
-			if(this.symbols.get(i).queryType){
-				System.out.println("MAP");
-			}
-			else {
-				System.out.println("MAR");
-			}
-		}
-
-
-	}
 
 }
