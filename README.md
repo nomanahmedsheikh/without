@@ -51,7 +51,6 @@ Ground level :
 (c) int truthVal : current truth value of this groundPred
 (d) int numPossibleValues : How mahy values can this groundPredicate take. Assumption : values always start from 0.
 So if this attribute is 3, then this groundPred can take values 0,1,2.
-(e) List totalSatWeight : For each possible value of this groundPred, stores total sat value for this groundPred
 (f) groundFormulaIds : 2D list. For each possible value of this groundPred, stores list of Pairs. Each pair
 is <groundFormulaId, groundClauseId>
 

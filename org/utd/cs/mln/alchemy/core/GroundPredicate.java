@@ -11,9 +11,7 @@ import java.util.List;
 public class GroundPredicate {
     public GroundPredicateSymbol symbol;
     public List<Integer> terms = new ArrayList<>();
-    public int truthVal; // If non-multinomial, then 0:false, 1: true, 2: unknown, else multivalued value
     public int numPossibleValues; //Stores number of possible values of this groundPred
-    public List<Double> totalSatWeight = new ArrayList<>(); // For each value, stores total Sat weight of all formulas.
     public List<List<Pair>> groundFormulaIds = new ArrayList<>(); // for each value, stores list of pair of <formula Id,clauseIndex> in which this groundPred appears. In case of non-multivalued, stores only one list of formula Ids as truth value doesn't affect M.B
 
     @Override

@@ -81,7 +81,6 @@ public class FullyGrindingMill {
                         for(int k = 0 ; k < numPossibleValues ; k++)
                         {
                             gp.groundFormulaIds.add(new ArrayList<Pair>());
-                            gp.totalSatWeight.add(0.0);
                         }
                         gp.numPossibleValues = numPossibleValues;
                         gpIndex = groundPredicatesList.size()-1;
