@@ -78,15 +78,16 @@ public class FullyGrindingMill {
                     if(gpIndex == -1) {
                         groundPredicatesList.add(gp);
                         int numPossibleValues = oldAtom.symbol.values.values.size();
-                        for(int k = 0 ; k < numPossibleValues ; k++)
-                        {
-                            gp.groundFormulaIds.add(new ArrayList<Pair>());
-                        }
                         gp.numPossibleValues = numPossibleValues;
                         gpIndex = groundPredicatesList.size()-1;
                     }
                     gp = groundPredicatesList.get(gpIndex);
-                    gp.groundFormulaIds.get(valTrue).add(new Pair(currentFormulaId,c));
+                    if(!gp.groundFormulaIds.containsKey(currentFormulaId))
+                    {
+                        gp.groundFormulaIds.put(currentFormulaId, new HashSet<>());
+                    }
+
+                    gp.groundFormulaIds.get(currentFormulaId).add(c);
                     newGroundAtoms.add(new GroundAtom(gp, sign, valTrue));
                 }
                 newGroundClause.groundAtoms = newGroundAtoms;

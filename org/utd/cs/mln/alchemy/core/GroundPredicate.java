@@ -2,8 +2,7 @@ package org.utd.cs.mln.alchemy.core;
 
 import org.utd.cs.gm.utility.Pair;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Created by Happy on 2/27/17.
@@ -12,7 +11,12 @@ public class GroundPredicate {
     public GroundPredicateSymbol symbol;
     public List<Integer> terms = new ArrayList<>();
     public int numPossibleValues; //Stores number of possible values of this groundPred
-    public List<List<Pair>> groundFormulaIds = new ArrayList<>(); // for each value, stores list of pair of <formula Id,clauseIndex> in which this groundPred appears. In case of non-multivalued, stores only one list of formula Ids as truth value doesn't affect M.B
+    public Map<Integer, Set<Integer>> groundFormulaIds = new HashMap<>(); // Stores which clauses this groundPred occurs in. Key : FormulaId, value : Set of cluaseIds in that formulaId in which this groundpred occurs.
+
+    @Override
+    public String toString() {
+        return symbol.symbol + terms;
+    }
 
     @Override
     public boolean equals(Object o) {

@@ -14,8 +14,6 @@ public class Parser {
 	public static final String DOMAINSTART = "#domains";
 	public static final String VALUESSTART = "#values";
 	public static final String PREDICATESTART = "#predicates";
-	public static final String MAPSTART = "#map";
-	public static final String MARGINALSTART = "#marginal";
 	public static final String FORMULASTART = "#formulas";
 	public static final String LEFTPRNTH = "(";
 	public static final String RIGHTPRNTH = ")";

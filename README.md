@@ -65,3 +65,4 @@ TODO :
 groundPredicate in function ground(), we have to check whether this already exists in groundPredicateList.
 This is O(n) in list. If we make it set, then we have a problem that, although we can check for containment,
 but we can't get original element of set on which we can operate.
+3. In gibbsSampler.java : // Read TODOs

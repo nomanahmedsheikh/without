@@ -22,5 +22,8 @@ public class InferTest {
         GroundMLN groundMln = fgm.ground(mln);
         System.out.println("Time taken to create MRF : " + (System.currentTimeMillis() - time)/1000.0 + " s");
         System.out.println("Total number of ground formulas : " + groundMln.groundFormulas.size());
+
+        GibbsSampler gs = new GibbsSampler(groundMln, 500, 1000);
+        gs.infer("/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_result.txt");
     }
 }
