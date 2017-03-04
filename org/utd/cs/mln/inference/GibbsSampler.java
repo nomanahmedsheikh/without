@@ -1,3 +1,4 @@
+
 package org.utd.cs.mln.inference;
 
 import org.utd.cs.gm.core.LogDouble;
@@ -13,6 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * Created by Happy on 3/1/17.
  */
+/*
 public class GibbsSampler {
     public State state;
     public List<List<Integer>> countNumAssignments = new ArrayList<>(); // For each groundPred in state.mln.groundPreds, stores how many times this groundpred gets assigned to a  particular value. Used for calculating marginal prob
@@ -95,28 +97,36 @@ public class GibbsSampler {
 
         // Burning in
         int numGndPreds = state.groundMLN.groundPredicates.size();
-        int gndPredIndex = 0;
         System.out.println("Burning in started...");
         long time = System.currentTimeMillis();
         for(int iter = 0 ; iter < numBurnSteps ; iter++)
         {
-            performGibbsStep(gndPredIndex);
-            gndPredIndex = (gndPredIndex+1)%numGndPreds;
+            for(int gndPredIndex = 0 ; gndPredIndex < numGndPreds ; gndPredIndex++)
+            {
+                performGibbsStep(gndPredIndex);
+            }
+            if(iter%1 == 0) {
+                System.out.println("iter : " + iter + ", Elapsed Time : " + (System.currentTimeMillis() - time) / 1000.0 + " s");
+            }
+
         }
         System.out.println("Time taken to burn in : " + (System.currentTimeMillis() - time)/1000.0 + " s");
 
         // After burning in
         System.out.println("Gibbs sampling started...");
         time = System.currentTimeMillis();
-        gndPredIndex = 0;
+
         for(int iter = 0 ; iter < numIter ; iter++)
         {
-            int assignment = performGibbsStep(gndPredIndex);
+            for(int gndPredIndex = 0 ; gndPredIndex < numGndPreds ; gndPredIndex++)
+            {
+                int assignment = performGibbsStep(gndPredIndex);
+                // TODO : This is wrong here, we need to increment counter for every groundPred, but that would be costly, is there an efficient way for this ?
+                countNumAssignments.get(gndPredIndex).set(assignment, countNumAssignments.get(gndPredIndex).get(assignment) + 1);
+            }
             //System.out.println(assignment);
-            gndPredIndex = (gndPredIndex+1)%numGndPreds;
             // Increment the count of assignments
-            // TODO : This is wrong here, we need to increment counter for every groundPred, but that would be costly, is there an efficient way for this ?
-            countNumAssignments.get(gndPredIndex).set(assignment, countNumAssignments.get(gndPredIndex).get(assignment) + 1);
+
         }
         calculateAndWriteMarginal(countNumAssignments, numIter, out_file);
         System.out.println("Gibbs sampling completed in : " + (System.currentTimeMillis() - time)/1000.0 + " s");
@@ -271,3 +281,4 @@ public class GibbsSampler {
         return ThreadLocalRandom.current().nextInt(0,numPossibleVals);
     }
 }
+*/

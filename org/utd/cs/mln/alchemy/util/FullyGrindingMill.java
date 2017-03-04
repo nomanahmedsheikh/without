@@ -1,7 +1,6 @@
 package org.utd.cs.mln.alchemy.util;
 
 import org.utd.cs.gm.core.LogDouble;
-import org.utd.cs.gm.utility.Pair;
 import org.utd.cs.mln.alchemy.core.*;
 
 import java.util.List;
@@ -64,8 +63,8 @@ public class FullyGrindingMill {
                 List<GroundAtom> newGroundAtoms = new ArrayList<>();
                 for(int j = 0 ; j < clause.atoms.size() ; j++)
                 {
+                    boolean sign = clause.sign.get(j);
                     Atom oldAtom = clause.atoms.get(j);
-                    Boolean sign = clause.sign.get(j);
                     int valTrue = clause.valTrue.get(j);
                     GroundPredicate gp = new GroundPredicate();
                     gp.symbol = new GroundPredicateSymbol(oldAtom.symbol.id,oldAtom.symbol.symbol,oldAtom.symbol.values);
@@ -82,13 +81,22 @@ public class FullyGrindingMill {
                         gpIndex = groundPredicatesList.size()-1;
                     }
                     gp = groundPredicatesList.get(gpIndex);
+                    int gpIndexInClause = newGroundClause.groundPredIndices.indexOf(gpIndex);
+                    if(gpIndexInClause == -1)
+                    {
+                        newGroundClause.groundPredIndices.add(gpIndex);
+                        gpIndexInClause = newGroundClause.groundPredIndices.size()-1;
+                        newGroundClause.globalToLocalPredIndex.put(gpIndex,gpIndexInClause);
+                        newGroundClause.localPredIndexToAtomIndices.put(gpIndexInClause, new ArrayList<>());
+                    }
+                    newGroundClause.localPredIndexToAtomIndices.get(gpIndexInClause).add(j);
                     if(!gp.groundFormulaIds.containsKey(currentFormulaId))
                     {
                         gp.groundFormulaIds.put(currentFormulaId, new HashSet<>());
                     }
 
                     gp.groundFormulaIds.get(currentFormulaId).add(c);
-                    newGroundAtoms.add(new GroundAtom(gp, sign, valTrue));
+                    newGroundAtoms.add(new GroundAtom(gp, gpIndex, gpIndexInClause, valTrue, sign));
                 }
                 newGroundClause.groundAtoms = newGroundAtoms;
                 newFormula.groundClauses.add(newGroundClause);

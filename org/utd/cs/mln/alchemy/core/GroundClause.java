@@ -2,20 +2,25 @@ package org.utd.cs.mln.alchemy.core;
 
 import org.utd.cs.gm.core.LogDouble;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Created by Happy on 3/1/17.
  */
 public class GroundClause {
     public List<GroundAtom> groundAtoms;
+    public List<Integer> groundPredIndices;
+    public Map<Integer,Integer> globalToLocalPredIndex;
+    public Map<Integer, List<Integer>> localPredIndexToAtomIndices;
     public LogDouble weight;
     public int formulaId; // id of groundformula of which this is a part
     public boolean isSatisfied;
 
     public GroundClause(){
         groundAtoms = new ArrayList<GroundAtom>();
+        groundPredIndices = new ArrayList<>();
+        globalToLocalPredIndex = new HashMap<>();
+        localPredIndexToAtomIndices = new HashMap<>();
         weight = LogDouble.ZERO;
         isSatisfied = false;
         formulaId = 0;

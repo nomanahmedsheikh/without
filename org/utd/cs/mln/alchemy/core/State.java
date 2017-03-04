@@ -10,7 +10,9 @@ import java.util.*;
 public class State {
     public GroundMLN groundMLN;
     public List<Integer> truthVals = new ArrayList<>(); // For each groundPredicate in mln.groundPredicates, stores its truthval
-    public List<List<Integer>> numFalseClauseTrueLiterals = new ArrayList<>(); // for each groundformula, first entry contains num of clauses in that formula which are false, then subsequent entries contain numSatLiterals for each clause in that formula
+    public List<Set<Integer>> falseClausesSet = new ArrayList<>(); // for each groundformula, stores set of groundClauseIds which are false in this state
+    public List<List<List<Integer>>> numTrueLiterals = new ArrayList<>(); // for each groundformula, for each clauseId, stores numSatLiterals for each groundPred in that clause
+    public List<List<Double>> wtsPerPredPerVal = new ArrayList<>(); // For each GroundPred, stores sat wts for each value
 
     public State(GroundMLN groundMLN) {
         this.groundMLN  = groundMLN;
@@ -18,12 +20,24 @@ public class State {
         for(int i = 0 ; i < numGroundPreds ; i++)
         {
             truthVals.add(0);
+            wtsPerPredPerVal.add(new ArrayList<>(Collections.nCopies(groundMLN.groundPredicates.get(i).numPossibleValues,0.0)));
         }
         int numGroundFormulas = groundMLN.groundFormulas.size();
         for(int i = 0 ; i < numGroundFormulas ; i++)
         {
+            falseClausesSet.add(new HashSet<>());
             int numGroundClauses = groundMLN.groundFormulas.get(i).groundClauses.size();
-            numFalseClauseTrueLiterals.add(new ArrayList<>(Collections.nCopies(numGroundClauses+1,0)));
+            numTrueLiterals.add(new ArrayList<>());
+            for(int j = 0 ; j < numGroundClauses ; j++)
+            {
+                GroundClause gndClause = groundMLN.groundFormulas.get(i).groundClauses.get(j);
+                int numGndPredsPerClause = gndClause.groundPredIndices.size();
+                numTrueLiterals.get(i).add(new ArrayList<>());
+                for(int k = 0 ; k < numGndPredsPerClause ; k++)
+                {
+                    numTrueLiterals.get(i).get(j).add(0);
+                }
+            }
         }
     }
 }

@@ -8,12 +8,17 @@ import java.util.List;
  */
 public class GroundAtom {
     public GroundPredicate groundPredicate;
-    public boolean sign ; // false: positive, true : negative
+    public int groundPredIndex; // index of ground predicate in MLN's groundPredicateList
+    public int clauseGroundPredIndex; // index of ground predicate in GroundClause's groundPredicateList
     public int valTrue; // At what value does this atom becomes true
+    public boolean sign;
 
-    public GroundAtom(GroundPredicate groundPredicate, boolean sign, int valTrue) {
+    public GroundAtom(GroundPredicate groundPredicate, int groundPredIndex, int clauseGroundPredIndex,
+                      int valTrue, boolean sign) {
         this.groundPredicate = groundPredicate;
-        this.sign = sign;
+        this.groundPredIndex = groundPredIndex;
+        this.clauseGroundPredIndex = clauseGroundPredIndex;
         this.valTrue = valTrue;
+        this.sign = sign;
     }
 }
