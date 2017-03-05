@@ -10,7 +10,7 @@ import java.util.List;
  */
 public class GroundFormula {
     public List<GroundClause> groundClauses = new ArrayList<>();
-    public int formulaId;
+    public int formulaId; // index of this formula in the MLN's list of ground formulas
     public int parentFormulaId; // id of first order formula from which this came
     public LogDouble weight;
     public boolean isSatisfied;

@@ -9,9 +9,9 @@ import java.util.*;
  */
 public class GroundClause {
     public List<GroundAtom> groundAtoms;
-    public List<Integer> groundPredIndices;
-    public Map<Integer,Integer> globalToLocalPredIndex;
-    public Map<Integer, List<Integer>> localPredIndexToAtomIndices;
+    public List<Integer> groundPredIndices; // Stores indices of groundpredicates coming in this clause. Indices are of MLN's groundPredicates list.
+    public Map<Integer,Integer> globalToLocalPredIndex; // Maps index of MLN's groundPredicate to index of clause's groundpredicate
+    public Map<Integer, List<Integer>> localPredIndexToAtomIndices; // Maps clause's groundPredicate Index to list of atom indices in this clause.
     public LogDouble weight;
     public int formulaId; // id of groundformula of which this is a part
     public boolean isSatisfied;

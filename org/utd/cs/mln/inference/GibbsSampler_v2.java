@@ -192,9 +192,12 @@ public class GibbsSampler_v2 {
         int assignment = get_probabilistic_assignment(state.wtsPerPredPerVal.get(gpId));
         int prev_assignment = state.truthVals.get(gpId);
         state.truthVals.set(gpId, assignment);
-        List<Integer> affectedGndPredIndices = new ArrayList<>(); // Markov Blanket for current flipped atom. When flipping an atom, if the value changes then we need to update satWeights for all these M.B predicates.
-        findMarkovBlanket(gpId, assignment, prev_assignment, affectedGndPredIndices);
-        updateWtsForGndPreds(affectedGndPredIndices);
+        if(assignment != prev_assignment)
+        {
+            List<Integer> affectedGndPredIndices = new ArrayList<>(); // Markov Blanket for current flipped atom. When flipping an atom, if the value changes then we need to update satWeights for all these M.B predicates.
+            findMarkovBlanket(gpId, assignment, prev_assignment, affectedGndPredIndices);
+            updateWtsForGndPreds(affectedGndPredIndices);
+        }
         return assignment;
     }
 

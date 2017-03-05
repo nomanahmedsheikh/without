@@ -66,3 +66,11 @@ groundPredicate in function ground(), we have to check whether this already exis
 This is O(n) in list. If we make it set, then we have a problem that, although we can check for containment,
 but we can't get original element of set on which we can operate.
 3. In gibbsSampler.java : // Read TODOs
+
+04/03/2017:
+1. Wrote GibbsSampler_v2, which is similar to alchemy.
+2. Need to verify correctness of this version.
+3. Need to to pre processing of grounded clauses: 
+    (a) For a clause, maintain HashMap of groundPredIndices to BitSet vector of size numPossible Values.
+    A vector tells at what values does a groundPredicate becomes true in this clause.
+    So If any of these vectors becomes all ones, then this clause is true.

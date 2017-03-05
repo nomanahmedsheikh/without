@@ -3,11 +3,7 @@ package org.utd.cs.mln.alchemy.util;
 import org.utd.cs.gm.core.LogDouble;
 import org.utd.cs.mln.alchemy.core.*;
 
-import java.util.List;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Created by Happy on 2/28/17.
@@ -60,7 +56,9 @@ public class FullyGrindingMill {
                 GroundClause newGroundClause = new GroundClause();
                 newGroundClause.formulaId = currentFormulaId;
                 newGroundClause.weight = new LogDouble(clause.weight.getValue(), true);
+                Map<Integer, BitSet> gpIndexToSatVals = new HashMap<>();
                 List<GroundAtom> newGroundAtoms = new ArrayList<>();
+                boolean clauseToRemove = false;
                 for(int j = 0 ; j < clause.atoms.size() ; j++)
                 {
                     boolean sign = clause.sign.get(j);
@@ -82,24 +80,42 @@ public class FullyGrindingMill {
                     }
                     gp = groundPredicatesList.get(gpIndex);
                     int gpIndexInClause = newGroundClause.groundPredIndices.indexOf(gpIndex);
+                    GroundAtom newGroundAtom = new GroundAtom(gpIndex, gpIndexInClause, valTrue, sign);
                     if(gpIndexInClause == -1)
                     {
                         newGroundClause.groundPredIndices.add(gpIndex);
                         gpIndexInClause = newGroundClause.groundPredIndices.size()-1;
+                        newGroundAtom.clauseGroundPredIndex = gpIndexInClause;
                         newGroundClause.globalToLocalPredIndex.put(gpIndex,gpIndexInClause);
                         newGroundClause.localPredIndexToAtomIndices.put(gpIndexInClause, new ArrayList<>());
+                        gpIndexToSatVals.put(gpIndexInClause, new BitSet(gp.numPossibleValues));
                     }
-                    newGroundClause.localPredIndexToAtomIndices.get(gpIndexInClause).add(j);
+                    // If this groundAtom has already come, then don't add it
+                    else
+                    {
+                        if(newGroundAtoms.contains(newGroundAtom))
+                            continue;
+                    }
+                    newGroundAtoms.add(newGroundAtom);
+                    newGroundClause.localPredIndexToAtomIndices.get(gpIndexInClause).add(newGroundAtoms.size()-1);
+                    BitSet gpBitSet = new BitSet(gp.numPossibleValues);
+                    gpBitSet.set(valTrue);
+                    if(sign == true)
+                        gpBitSet.flip(0,gp.numPossibleValues);
+                    gpBitSet.or(gpIndexToSatVals.get(gpIndexInClause));
+                    if(gpBitSet.cardinality() == gp.numPossibleValues)
+                        clauseToRemove = true;
+                    gpIndexToSatVals.put(gpIndexInClause, gpBitSet);
                     if(!gp.groundFormulaIds.containsKey(currentFormulaId))
                     {
                         gp.groundFormulaIds.put(currentFormulaId, new HashSet<>());
                     }
 
                     gp.groundFormulaIds.get(currentFormulaId).add(c);
-                    newGroundAtoms.add(new GroundAtom(gp, gpIndex, gpIndexInClause, valTrue, sign));
                 }
                 newGroundClause.groundAtoms = newGroundAtoms;
-                newFormula.groundClauses.add(newGroundClause);
+                if(clauseToRemove == false)
+                    newFormula.groundClauses.add(newGroundClause);
             }
         }
         groundMln.groundFormulas.addAll(groundFormulas);
