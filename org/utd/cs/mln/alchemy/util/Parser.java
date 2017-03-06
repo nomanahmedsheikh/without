@@ -26,6 +26,7 @@ public class Parser {
 	public static final String COMMASEPARATOR = ",";
 	public static final String EQUALSTO = "=";
 	public static final String ELLIPSIS = "...";
+    public static final String COMMENT = "//";
 	
 	private static final String REGEX_ESCAPE_CHAR = "\\";
 
@@ -443,7 +444,7 @@ public class Parser {
 		while(scanner.hasNextLine()) {
 			String line = scanner.nextLine().replaceAll("\\s","");
 
-			if(line.isEmpty()) {
+			if(line.isEmpty() || line.contains(COMMENT)) {
 				continue;
 			}
 

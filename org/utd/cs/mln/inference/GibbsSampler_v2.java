@@ -130,7 +130,7 @@ public class GibbsSampler_v2 {
                 performGibbsStep(gpId);
 
             }
-            if(i%100 == 0) {
+            if(i%1 == 0) {
                 System.out.println("iter : " + i + ", Elapsed Time : " + (System.currentTimeMillis() - time) / 1000.0 + " s");
             }
         }
@@ -250,7 +250,6 @@ public class GibbsSampler_v2 {
     }
 
     private void updateWtsForGndPreds(List<Integer> affectedGndPredIndices) {
-        int numGndPreds = affectedGndPredIndices.size();
         List<GroundPredicate> groundPredicates = state.groundMLN.groundPredicates;
         for(Integer i : affectedGndPredIndices)
         {
