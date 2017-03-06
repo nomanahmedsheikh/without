@@ -6,6 +6,7 @@ import java.util.List;
 /**
  * Created by Happy on 2/21/17.
  */
+/*
 public class GroundAtom {
     public int groundPredIndex; // index of ground predicate in MLN's groundPredicateList
     public int clauseGroundPredIndex; // index of ground predicate in GroundClause's groundPredicateList
@@ -41,3 +42,4 @@ public class GroundAtom {
         this.sign = sign;
     }
 }
+*/

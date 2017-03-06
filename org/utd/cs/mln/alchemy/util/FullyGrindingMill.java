@@ -56,7 +56,6 @@ public class FullyGrindingMill {
                 newGroundClause.formulaId = currentFormulaId;
                 newGroundClause.weight = new LogDouble(clause.weight.getValue(), true);
                 Map<Integer, BitSet> gpIndexToSatVals = new HashMap<>();
-                List<GroundAtom> newGroundAtoms = new ArrayList<>();
                 List<GroundPredicate> newGroundPreds = new ArrayList<>(); // We need this list because once a groundClause is created, we want to
                 // update formulaIds info of each groundPred. We can't do it on the go because we don't know whether groundClause will be created
                 // or not, since it can be removed due to preprocessing.
@@ -92,13 +91,13 @@ public class FullyGrindingMill {
                     // Check if this groundPredicate occurs first time in this ground clause. then update
                     // groundClause's data structures about this groundPredicate.
                     int gpIndexInClause = newGroundClause.groundPredIndices.indexOf(gpIndex);
-                    GroundAtom newGroundAtom = new GroundAtom(gpIndex, gpIndexInClause, valTrue, sign);
+                    //GroundAtom newGroundAtom = new GroundAtom(gpIndex, gpIndexInClause, valTrue, sign);
                     if(gpIndexInClause == -1)
                     {
                         newGroundPreds.add(gp);
                         newGroundClause.groundPredIndices.add(gpIndex);
                         gpIndexInClause = newGroundClause.groundPredIndices.size()-1;
-                        newGroundAtom.clauseGroundPredIndex = gpIndexInClause;
+                        //newGroundAtom.clauseGroundPredIndex = gpIndexInClause;
                         newGroundClause.globalToLocalPredIndex.put(gpIndex,gpIndexInClause);
                         newGroundClause.localPredIndexToAtomIndices.put(gpIndexInClause, new ArrayList<>());
                         gpIndexToSatVals.put(gpIndexInClause, new BitSet(gp.numPossibleValues));
@@ -106,13 +105,15 @@ public class FullyGrindingMill {
                     else
                     {
                         // If this groundAtom has already come, then don't add it and move to next atom
+                        /*
                         if(newGroundAtoms.contains(newGroundAtom))
                             continue;
+                            */
                     }
-                    newGroundAtoms.add(newGroundAtom);
+                    //newGroundAtoms.add(newGroundAtom);
 
                     // If this new ground atom gets added successfully, then update localPredIndexToAtomIndices list
-                    newGroundClause.localPredIndexToAtomIndices.get(gpIndexInClause).add(newGroundAtoms.size()-1);
+                    //newGroundClause.localPredIndexToAtomIndices.get(gpIndexInClause).add(newGroundAtoms.size()-1);
 
                     // Now once we have added new ground Atom, we need to check if ground clause gets satisfied or not.
                     BitSet gpBitSet = new BitSet(gp.numPossibleValues);
@@ -135,7 +136,13 @@ public class FullyGrindingMill {
                 // If this clause is to be added, then only update all gp's formulaId's info
                 if(clauseToRemove == false)
                 {
-                    newGroundClause.groundAtoms = newGroundAtoms;
+                    for(int gpId = 0 ; gpId < newGroundPreds.size() ; gpId++)
+                    {
+                        GroundPredicate gp = newGroundPreds.get(gpId);
+                        BitSet b = gpIndexToSatVals.get(gpId);
+                        newGroundClause.grounPredBitSet.add(b);
+                    }
+                    //newGroundClause.groundAtoms = newGroundAtoms;
                     newGroundClauseList.add(newGroundClause);
                     for(GroundPredicate gp : newGroundPreds)
                     {

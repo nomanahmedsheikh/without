@@ -56,16 +56,13 @@ public class GibbsSampler_v2 {
         GroundMLN gmln = state.groundMLN;
         List<GroundPredicate> gpList = gmln.groundPredicates;
         int numGps = gpList.size();
-        /*
+
         for(int i = 0 ; i < numGps ; i++)
         {
             int numPossibleVals = gpList.get(i).numPossibleValues;
             int assignment = getUniformAssignment(numPossibleVals);
             state.truthVals.set(i,assignment);
-        }*/
-        state.truthVals.set(0,0);
-        state.truthVals.set(1,1);
-
+        }
 
     }
 
@@ -76,42 +73,30 @@ public class GibbsSampler_v2 {
         for(int i = 0 ; i < numFormulas ; i++)
         {
             GroundFormula gf = gm.groundFormulas.get(i);
-            Set<Integer> falseClauseIds = new HashSet<Integer>();
+            Set<Integer> falseClauseIds = new HashSet<>();
             int numClauses = gf.groundClauses.size();
             for(int j = 0 ; j < numClauses ; j++)
             {
                 GroundClause gc = gf.groundClauses.get(j);
                 int numPreds = gc.groundPredIndices.size();
-                ArrayList<Integer> numSatLiteralsPerPred = new ArrayList<>(Collections.nCopies(numPreds,0));
-                int numAtoms = gc.groundAtoms.size();
-                int sumSatLiterals = 0;
-                for(int k = 0 ; k < numAtoms ; k++)
+                //int numAtoms = gc.groundAtoms.size();
+                int numSatLiterals = 0;
+                for(int k = 0 ; k < numPreds ; k++)
                 {
-                    GroundAtom ga = gc.groundAtoms.get(k);
-                    int gndPredIndex = ga.groundPredIndex;
-                    int currentAssignment = state.truthVals.get(gndPredIndex);
-                    // If current atom is true literal
-                    if((ga.valTrue == currentAssignment) != ga.sign)
-                    {
-                        int gpIndex = ga.clauseGroundPredIndex;
-                        // TODO : This increment may be inefficient. Can we use AtomicInteger?
-                        numSatLiteralsPerPred.set(gpIndex, numSatLiteralsPerPred.get(gpIndex)+1);
-                        sumSatLiterals++;
+                    int globalPredIndex = gc.groundPredIndices.get(k);
+                    int currentAssignment = state.truthVals.get(globalPredIndex);
+                    if (gc.grounPredBitSet.get(k).get(currentAssignment)) {
+                        numSatLiterals++;
                     }
-                } // end of clause
-                for(int l = 0 ; l < numPreds ; l++)
-                {
-                    numSatLiteralsPerPred.set(l, sumSatLiterals - numSatLiteralsPerPred.get(l));
                 }
-
-                if(sumSatLiterals == 0)
+                state.numTrueLiterals.get(i).set(j, numSatLiterals);
+                if(numSatLiterals == 0)
                 {
                     falseClauseIds.add(j);
                 }
-                state.numTrueLiterals.get(i).set(j, numSatLiteralsPerPred);
-            }// end of formula
+            } // end of clause
             state.falseClausesSet.set(i,falseClauseIds);
-        }
+        }// end of formula
     }
 
     public void infer(String out_file)
@@ -210,33 +195,22 @@ public class GibbsSampler_v2 {
             {
                 GroundClause gc = state.groundMLN.groundFormulas.get(formulaId).groundClauses.get(cid);
                 int localPredindex = gc.globalToLocalPredIndex.get(gpId);
-                int satDifference = 0; // numsatLiterals according to new assignment - old assignment
-                int sumSatLiterals = 0;
-                for(int aid : gc.localPredIndexToAtomIndices.get(localPredindex))
-                {
-                    GroundAtom ga = gc.groundAtoms.get(aid);
-                    if((prev_assignment == ga.valTrue) != ga.sign)
-                    {
-                        satDifference--;
-                    }
-                    if((assignment == ga.valTrue) != ga.sign)
-                    {
-                        satDifference++;
-                    }
-                }
+                BitSet b = gc.grounPredBitSet.get(localPredindex);
+                int cur_val = b.get(assignment) ? 1 : 0;
+                int prev_val = b.get(prev_assignment) ? 1 : 0;
+                int satDifference = cur_val - prev_val; // numsatLiterals according to new assignment - old assignment
+                int curSatLiterals = state.numTrueLiterals.get(formulaId).get(cid);
+                curSatLiterals += satDifference;
+                state.numTrueLiterals.get(formulaId).set(cid, curSatLiterals);
+
                 for(int otherGpId : gc.groundPredIndices)
                 {
                     if(otherGpId != gpId)
                     {
                         mbSet.add(otherGpId);
-                        int localGpIndex = gc.globalToLocalPredIndex.get(otherGpId);
-                        int oldNumSatLiterals = state.numTrueLiterals.get(formulaId).get(cid).get(localGpIndex);
-                        int newNumSatLiterals = oldNumSatLiterals+satDifference;
-                        state.numTrueLiterals.get(formulaId).get(cid).set(localGpIndex, newNumSatLiterals);
-                        sumSatLiterals += newNumSatLiterals;
                     }
                 }
-                if(sumSatLiterals == 0 && state.numTrueLiterals.get(formulaId).get(cid).get(localPredindex) == 0)
+                if(curSatLiterals > 0)
                 {
                     state.falseClausesSet.get(formulaId).remove(cid);
                 }
@@ -274,25 +248,24 @@ public class GibbsSampler_v2 {
                         BitSet clauseBitSet = new BitSet(numPossibleVals);
                         GroundClause gc = gf.groundClauses.get(cid);
                         int localPredIndex = gc.globalToLocalPredIndex.get(i);
-                        int numSatLiterals = state.numTrueLiterals.get(formulaId).get(cid).get(localPredIndex);
-                        if(numSatLiterals > 0)
+                        int numSatLiterals = state.numTrueLiterals.get(formulaId).get(cid);
+                        if(numSatLiterals > 1)
                             clauseBitSet.flip(0,numPossibleVals);
-                        else
+                        else if(numSatLiterals == 1)
                         {
-                            List<Integer> atomIndices = gc.localPredIndexToAtomIndices.get(localPredIndex);
-                            for(Integer aid : atomIndices)
+                            BitSet b = gc.grounPredBitSet.get(localPredIndex);
+                            if(b.get(state.truthVals.get(i)))
                             {
-                                BitSet atomBitSet = new BitSet(numPossibleVals);
-                                GroundAtom ga = gc.groundAtoms.get(aid);
-                                atomBitSet.set(ga.valTrue);
-                                if(ga.sign)
-                                {
-                                    atomBitSet.flip(0,numPossibleVals);
-                                }
-                                clauseBitSet.or(atomBitSet);
-                                if(clauseBitSet.cardinality() == numPossibleVals)
-                                    break;
+                                clauseBitSet = (BitSet) DeepCopyUtil.copy(b);
                             }
+                            else
+                            {
+                                clauseBitSet.flip(0,numPossibleVals);
+                            }
+                        }
+                        else {
+                            BitSet b = gc.grounPredBitSet.get(localPredIndex);
+                            clauseBitSet = (BitSet) DeepCopyUtil.copy(b);
                         }
                         formulaBitSet.and(clauseBitSet);
                     }// end clauses loop
