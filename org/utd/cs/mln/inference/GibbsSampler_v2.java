@@ -1,6 +1,6 @@
 package org.utd.cs.mln.inference;
 
-import org.utd.cs.gm.utility.DeepCopyUtil;
+import org.utd.cs.gm.utility.Timer;
 import org.utd.cs.mln.alchemy.core.*;
 
 import java.io.IOException;
@@ -109,30 +109,28 @@ public class GibbsSampler_v2 {
         System.out.println("Burning in started...");
         long time = System.currentTimeMillis();
 
-        for(int i =0 ; i < numBurnSteps; i++)
+        for(int i =1 ; i <= numBurnSteps; i++)
         {
             for(int gpId =0; gpId < numGndPreds; gpId++){
                 performGibbsStep(gpId);
-
             }
-            if(i%1 == 0) {
-                System.out.println("iter : " + i + ", Elapsed Time : " + (System.currentTimeMillis() - time) / 1000.0 + " s");
+            if(i%100 == 0) {
+                System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
             }
         }
 
-
-        System.out.println("Time taken to burn in : " + (System.currentTimeMillis() - time)/1000.0 + " s");
+        System.out.println("Burning completed in : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
 
         System.out.println("Gibbs sampling started...");
         time = System.currentTimeMillis();
-        for(int i =0 ; i < numIter; i++)
+        for(int i =1 ; i <= numIter; i++)
         {
             for(int gpId =0; gpId < numGndPreds; gpId++){
                 int assignment = performGibbsStep(gpId);
                 countNumAssignments.get(gpId).set(assignment, countNumAssignments.get(gpId).get(assignment)+1);
             }
             if(i%100 == 0) {
-                System.out.println("iter : " + i + ", Elapsed Time : " + (System.currentTimeMillis() - time) / 1000.0 + " s");
+                System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
             }
         }
 
@@ -151,7 +149,7 @@ public class GibbsSampler_v2 {
             }
         }
         writeMarginal(marginals, out_file);
-        System.out.println("Gibbs sampling completed in : " + (System.currentTimeMillis() - time)/1000.0 + " s");
+        System.out.println("Gibbs Sampling completed in : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
     }
 
     private void writeMarginal(List<List<Double>> marginals, String out_file)
@@ -236,13 +234,16 @@ public class GibbsSampler_v2 {
             {
                 GroundFormula gf = state.groundMLN.groundFormulas.get(formulaId);
                 double wt = gf.weight.getValue();
-                Set<Integer> tempSet = (Set<Integer>) DeepCopyUtil.copy(state.falseClausesSet.get(formulaId));
+                Set<Integer> tempSet = new HashSet<Integer>();
+                tempSet.addAll(state.falseClausesSet.get(formulaId));
                 tempSet.removeAll(formulaIds.get(formulaId));
                 BitSet formulaBitSet = new BitSet(numPossibleVals);
                 formulaBitSet.flip(0,numPossibleVals);
+
                 // If there is a clause which is false, and not doesn't contain gp, then this formula is always false
                 if(tempSet.size() == 0)
                 {
+
                     for(Integer cid : formulaIds.get(formulaId))
                     {
                         BitSet clauseBitSet = new BitSet(numPossibleVals);
@@ -256,7 +257,7 @@ public class GibbsSampler_v2 {
                             BitSet b = gc.grounPredBitSet.get(localPredIndex);
                             if(b.get(state.truthVals.get(i)))
                             {
-                                clauseBitSet = (BitSet) DeepCopyUtil.copy(b);
+                                clauseBitSet = (BitSet) b.clone();
                             }
                             else
                             {
@@ -265,10 +266,11 @@ public class GibbsSampler_v2 {
                         }
                         else {
                             BitSet b = gc.grounPredBitSet.get(localPredIndex);
-                            clauseBitSet = (BitSet) DeepCopyUtil.copy(b);
+                            clauseBitSet = (BitSet) b.clone();
                         }
                         formulaBitSet.and(clauseBitSet);
                     }// end clauses loop
+
                     int startIndex = 0;
                     while(startIndex < numPossibleVals)
                     {
@@ -279,6 +281,7 @@ public class GibbsSampler_v2 {
                         startIndex = index+1;
                     }
                 }// end if condition
+
             } //end formulas loops
 
             List<Double> tempWts = new ArrayList<>();

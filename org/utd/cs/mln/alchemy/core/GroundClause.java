@@ -10,7 +10,6 @@ import java.util.*;
 public class GroundClause {
     public List<Integer> groundPredIndices; // Stores indices of groundpredicates coming in this clause. Indices are of MLN's groundPredicates list.
     public Map<Integer, Integer> globalToLocalPredIndex; // Maps index of MLN's groundPredicate to index of clause's groundpredicate
-    public Map<Integer, List<Integer>> localPredIndexToAtomIndices; // Maps clause's groundPredicate Index to list of atom indices in this clause.
     public List<BitSet> grounPredBitSet;
     public LogDouble weight;
     public int formulaId; // id of groundformula of which this is a part
@@ -19,7 +18,6 @@ public class GroundClause {
     public GroundClause() {
         groundPredIndices = new ArrayList<>();
         globalToLocalPredIndex = new HashMap<>();
-        localPredIndexToAtomIndices = new HashMap<>();
         grounPredBitSet = new ArrayList<>();
         weight = LogDouble.ZERO;
         isSatisfied = false;
@@ -38,7 +36,6 @@ public class GroundClause {
         if (isSatisfied != that.isSatisfied) return false;
         if (!groundPredIndices.equals(that.groundPredIndices)) return false;
         if (!globalToLocalPredIndex.equals(that.globalToLocalPredIndex)) return false;
-        if (!localPredIndexToAtomIndices.equals(that.localPredIndexToAtomIndices)) return false;
         if (!grounPredBitSet.equals(that.grounPredBitSet)) return false;
         return weight.equals(that.weight);
     }
@@ -47,7 +44,6 @@ public class GroundClause {
     public int hashCode() {
         int result = groundPredIndices.hashCode();
         result = 31 * result + globalToLocalPredIndex.hashCode();
-        result = 31 * result + localPredIndexToAtomIndices.hashCode();
         result = 31 * result + grounPredBitSet.hashCode();
         result = 31 * result + weight.hashCode();
         result = 31 * result + formulaId;
@@ -60,7 +56,6 @@ public class GroundClause {
         return "GroundClause{" +
                 "groundPredIndices=" + groundPredIndices +
                 ", globalToLocalPredIndex=" + globalToLocalPredIndex +
-                ", localPredIndexToAtomIndices=" + localPredIndexToAtomIndices +
                 ", grounPredBitSet=" + grounPredBitSet +
                 ", weight=" + weight +
                 ", formulaId=" + formulaId +
