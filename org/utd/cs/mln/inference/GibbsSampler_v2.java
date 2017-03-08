@@ -201,13 +201,14 @@ public class GibbsSampler_v2 {
                 curSatLiterals += satDifference;
                 state.numTrueLiterals.get(formulaId).set(cid, curSatLiterals);
 
+                /*
                 for(int otherGpId : gc.groundPredIndices)
                 {
                     if(otherGpId != gpId)
                     {
                         mbSet.add(otherGpId);
                     }
-                }
+                }*/
                 if(curSatLiterals > 0)
                 {
                     state.falseClausesSet.get(formulaId).remove(cid);
@@ -217,6 +218,10 @@ public class GibbsSampler_v2 {
                     state.falseClausesSet.get(formulaId).add(cid);
                 }
             }
+
+            GroundFormula gf = state.groundMLN.groundFormulas.get(formulaId);
+            mbSet.addAll(gf.groundPredIndices);
+            mbSet.remove(gpId);
         }
         markov_blanket.addAll(mbSet);
     }

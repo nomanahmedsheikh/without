@@ -97,23 +97,9 @@ public class FullyGrindingMill {
                         newGroundPreds.add(gp);
                         newGroundClause.groundPredIndices.add(gpIndex);
                         gpIndexInClause = newGroundClause.groundPredIndices.size()-1;
-                        //newGroundAtom.clauseGroundPredIndex = gpIndexInClause;
                         newGroundClause.globalToLocalPredIndex.put(gpIndex,gpIndexInClause);
-                        newGroundClause.localPredIndexToAtomIndices.put(gpIndexInClause, new ArrayList<>());
                         gpIndexToSatVals.put(gpIndexInClause, new BitSet(gp.numPossibleValues));
                     }
-                    else
-                    {
-                        // If this groundAtom has already come, then don't add it and move to next atom
-                        /*
-                        if(newGroundAtoms.contains(newGroundAtom))
-                            continue;
-                            */
-                    }
-                    //newGroundAtoms.add(newGroundAtom);
-
-                    // If this new ground atom gets added successfully, then update localPredIndexToAtomIndices list
-                    //newGroundClause.localPredIndexToAtomIndices.get(gpIndexInClause).add(newGroundAtoms.size()-1);
 
                     // Now once we have added new ground Atom, we need to check if ground clause gets satisfied or not.
                     BitSet gpBitSet = new BitSet(gp.numPossibleValues);
@@ -138,14 +124,14 @@ public class FullyGrindingMill {
                 {
                     for(int gpId = 0 ; gpId < newGroundPreds.size() ; gpId++)
                     {
-                        GroundPredicate gp = newGroundPreds.get(gpId);
                         BitSet b = gpIndexToSatVals.get(gpId);
                         newGroundClause.grounPredBitSet.add(b);
                     }
-                    //newGroundClause.groundAtoms = newGroundAtoms;
                     newGroundClauseList.add(newGroundClause);
                     for(GroundPredicate gp : newGroundPreds)
                     {
+                        int gpIndex = groundPredicatesList.indexOf(gp);
+                        newFormula.groundPredIndices.add(gpIndex);
                         if(!gp.groundFormulaIds.containsKey(currentFormulaId))
                         {
                             gp.groundFormulaIds.put(currentFormulaId, new HashSet<>());
