@@ -338,13 +338,10 @@ public class MLN {
 	/*
 	 * This method takes an mln and evidence list as input, and modifies input mln into new normal mln.
 	 */
+	/*
 	public void convertToNormalForm(MLN mln, ArrayList<Evidence> evid_list) {
 		ArrayList<Integer> predIndices = new ArrayList<Integer>();
-		/*
-		for(PredicateSymbol symbol : mln.symbols){
-			predIndices.add(0);
-		}
-		*/
+
 		ArrayList<Atom> atoms_created = new ArrayList<Atom>();
 		// Run through each evidence one by one and apply them to increasing set of clauses. 
 		for(Evidence evidence : evid_list){
@@ -380,7 +377,7 @@ public class MLN {
 		
 		print(mln.clauses, "new MLN printing...");
 	}
-
+	*/
 	/*
 	 * This method splits a clause according to evidence. It takes atomIndex as argument which tells which atom to break on. Also, termIndex tells
 	 * which term to break on. Initially termIndex is always 0.
@@ -388,6 +385,7 @@ public class MLN {
 	 * For example, initially termIndex is 0, so it breaks into 2 clauses according to that term lets say. Then for both of these new clauses, this
 	 * function is again called with termIndex 1.
 	 */
+	/*
 	private ArrayList<WClause> splitClauseAtTerm(WClause clause, int atomIndex, int termIndex, Evidence evidence){
 		// Base case : If we reach at the end of terms, add this clause to final list and return final list.
 		if(termIndex == clause.atoms.get(atomIndex).terms.size()){
@@ -414,22 +412,11 @@ public class MLN {
 						Atom atom1 = clause1.atoms.get(i);
 						atom1.terms.get(j).domain.clear();
 						atom1.terms.get(j).domain.add(evidence.values.get(termIndex)); // atom1's domain is evidence value itself 
-						/*
-						if(changed == false){
-							if(already_created(atoms_created, atom1.symbol.parentId, atom1.terms.get(j).domain))
-							atom1.symbol.symbol +=  "_" + predIndices.get(atom1.symbol.id);
-							predIndices.set(atom1.symbol.id, predIndices.get(atom1.symbol.id)+1);
-						}
-						*/
+
 						
 						Atom atom2 = clause2.atoms.get(i);
 						atom2.terms.get(j).domain.remove(evidence.values.get(termIndex)); // atom2's domain is original minus evidence's value
-						/*
-						if(changed == false){
-							atom2.symbol.symbol +=  "_" + predIndices.get(atom2.symbol.id);
-							predIndices.set(atom2.symbol.id, predIndices.get(atom2.symbol.id)+1);
-						}
-						*/
+
 						
 						//changed = true;
 					}
@@ -438,10 +425,11 @@ public class MLN {
 		 ArrayList<WClause> splittedClauses = splitClauseAtTerm(clause1, atomIndex, termIndex+1, evidence); // recursively split clause1 on next term.
 		 splittedClauses.add(clause2); // don't need to split clause2 as it doesn't contain evidence's value at one of the terms and hence can't contain exactly same evidence.
 		 return splittedClauses;
-	}
+	}*/
 	/*
 	 * This method applies an evidence onto a clause (contained in newClauses), and splits that clause accordingly, and modifies newClauses.
 	 */
+	/*
 	private void applyEvidence(ArrayList<Integer> atomIndices, Evidence evidence, ArrayList<Atom> atoms_created,
 			ArrayList<WClause> newClauses) {
 		// Whole functionality divided into two parts : splitting clauses and then applying evidence (which can result into removal of atom from clause
@@ -499,7 +487,7 @@ public class MLN {
 		}
 		newClauses.clear();
 		newClauses.addAll(finalClauses);
-	}
+	}*/
 	
 	/*
 

@@ -35,6 +35,10 @@ public class FullyGrindingMill {
         }
 
         groundMln.groundPredicates.addAll(groundPredicatesList);
+        for(PredicateSymbol symbol : mln.symbols)
+        {
+            groundMln.symbols.add(new GroundPredicateSymbol(symbol.id, symbol.symbol, symbol.values));
+        }
         return groundMln;
     }
 
@@ -176,4 +180,112 @@ public class FullyGrindingMill {
 
     }
 
+    public GroundMLN handleEvidence(GroundMLN groundMln, Evidence evidence) throws CloneNotSupportedException {
+        GroundMLN newGroundMln = new GroundMLN();
+        List<GroundPredicate> newGpList = new ArrayList<>();
+        for(GroundFormula gf : groundMln.groundFormulas)
+        {
+            GroundFormula newGroundFormula = new GroundFormula();
+            int currentFormulaId = newGroundMln.groundFormulas.size();
+            newGroundFormula.weight = gf.weight;
+            newGroundFormula.formulaId = gf.formulaId;
+            newGroundFormula.parentFormulaId = gf.parentFormulaId;
+            boolean keepFormula = true;
+            List<GroundClause> newGcList = new ArrayList<>();
+            for(GroundClause gc : gf.groundClauses)
+            {
+                GroundClause newGc = new GroundClause();
+                newGc.formulaId = currentFormulaId;
+                newGc.weight = new LogDouble(gc.weight.getValue(), true);
+                List<GroundPredicate> newGroundPreds = new ArrayList<>();
+                boolean clauseToRemove = false;
+                for(Integer gpIndex : gc.groundPredIndices)
+                {
+                    GroundPredicate gp = groundMln.groundPredicates.get(gpIndex);
+                    BitSet b = gc.grounPredBitSet.get(gc.globalToLocalPredIndex.get(gpIndex));
+                    // If this gp is not evidence, then add it
+                    if(!evidence.predIdVal.containsKey(gpIndex))
+                    {
+                        GroundPredicate newGp = new GroundPredicate();
+
+                        //TODO : currently, no copy c'tor called
+                        newGp.symbol = new GroundPredicateSymbol(gp.symbol.id, gp.symbol.symbol,gp.symbol.values);
+
+                        // Fill in the terms with constants
+                        for(Integer term : gp.terms)
+                        {
+                            newGp.terms.add(term);
+                        }
+
+                        // Check if this groundPredicate already exists, if it does not, then add it to groundPredicate List.
+                        // Note that it may happen that this clause gets removed later due to preprocessing, but still,
+                        // we need this groundPredicate, so there is no harm in adding it to groundPredicate List.
+                        int newGpIndex = newGpList.indexOf(gp);
+                        if(newGpIndex == -1) {
+                            newGpList.add(newGp);
+                            newGp.numPossibleValues = gp.numPossibleValues;
+                            newGpIndex = newGpList.size()-1;
+                        }
+                        newGp = newGpList.get(newGpIndex);
+
+                        // Check if this groundPredicate occurs first time in this ground clause. then update
+                        // groundClause's data structures about this groundPredicate.
+                        int newGpIndexInClause = newGc.groundPredIndices.indexOf(newGpIndex);
+
+                        if(newGpIndexInClause == -1)
+                        {
+                            newGroundPreds.add(newGp);
+                            newGc.groundPredIndices.add(newGpIndex);
+                            newGpIndexInClause = newGc.groundPredIndices.size()-1;
+                            newGc.globalToLocalPredIndex.put(newGpIndex,newGpIndexInClause);
+                            newGc.grounPredBitSet.add((BitSet)b.clone());
+                        }
+                    }
+
+                    else
+                    {
+                        if(b.get(evidence.predIdVal.get(gpIndex)))
+                        {
+                            clauseToRemove = true;
+                            break;
+                        }
+                    }
+                }
+                if(clauseToRemove == false)
+                {
+                    if(newGpList.size() > 0)
+                    {
+                        //clause add karna h
+                        newGcList.add(newGc);
+                        for (GroundPredicate gp : newGroundPreds) {
+                            int gpIndex = newGpList.indexOf(gp);
+                            newGroundFormula.groundPredIndices.add(gpIndex);
+                            if (!gp.groundFormulaIds.containsKey(currentFormulaId)) {
+                                gp.groundFormulaIds.put(currentFormulaId, new HashSet<>());
+                            }
+                            gp.groundFormulaIds.get(currentFormulaId).add(newGcList.size() - 1);
+                        }
+                    }
+                    else
+                    {
+                        keepFormula = false;
+                        break;
+                    }
+                }
+            }
+            if(newGcList.size() > 0 && keepFormula)
+            {
+                newGroundFormula.groundClauses.addAll(newGcList);
+                newGroundMln.groundFormulas.add(newGroundFormula);
+            }
+
+        }
+        newGroundMln.groundPredicates.addAll(newGpList);
+        for(GroundPredicate gp : newGpList)
+        {
+            GroundPredicateSymbol gps = gp.symbol;
+            newGroundMln.symbols.add(new GroundPredicateSymbol(gps.id, gps.symbol, gps.values));
+        }
+        return newGroundMln;
+    }
 }

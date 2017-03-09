@@ -400,41 +400,6 @@ public class Parser {
 		predicateId++;
 	}
 
-	public ArrayList<Evidence> parseInputEvidenceFile(String filename) throws FileNotFoundException, PredicateNotFound
-	{
-		Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(filename))));
-		ArrayList<Evidence> evidList = new ArrayList<Evidence>();
-		while(scanner.hasNextLine()) {
-			String line = scanner.nextLine().replaceAll("\\s","");
-
-			if(line.isEmpty()) {
-				continue;
-			}
-			
-			evidList.add(parseEvidenceString(line));
-		}
-		scanner.close();
-		return evidList;
-	}
-	private Evidence parseEvidenceString(String line) throws PredicateNotFound{
-		String[] predArr = line.split(REGEX_ESCAPE_CHAR + LEFTPRNTH);
-		String symbolName = predArr[0];
-		boolean truthValue = (symbolName.charAt(0) != '!');
-		if(!truthValue){
-			symbolName = symbolName.substring(1);
-		}
-		String[] termNames = predArr[1].replace(RIGHTPRNTH, "").split(COMMASEPARATOR);
-		ArrayList<Integer> values = new ArrayList<Integer>();
-		for(String term : termNames){
-			values.add(Integer.parseInt(term));
-		}
-		for(PredicateSymbol symbol : mln.symbols){
-			if(symbolName.equals(symbol.symbol)){
-				return new Evidence(MLN.create_new_symbol(symbol),values,truthValue);
-			}
-		}
-		throw new PredicateNotFound("wrong predicate in evidence");
-	}
 
 	public void parseInputMLNFile(String filename) throws FileNotFoundException
 	{
@@ -488,6 +453,42 @@ public class Parser {
 
 		scanner.close();
 	}
+
+    public Evidence parseEvidence(GroundMLN groundMln, String evidence_file) throws FileNotFoundException {
+        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(evidence_file))));
+        Evidence evidence = new Evidence();
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine().replaceAll("\\s", "");
+
+            if (line.isEmpty()) {
+                continue;
+            }
+            String[] predArr = line.split(REGEX_ESCAPE_CHAR + LEFTPRNTH);
+            String symbolName = predArr[0];
+            String[] predArr2 = predArr[1].split(EQUALSTO);
+            String value = predArr2[1];
+            String[] termNames = predArr2[0].replace(RIGHTPRNTH, "").split(COMMASEPARATOR);
+
+            GroundPredicate gp = new GroundPredicate();
+            // Find groundPredicate symbol with string=symbolname
+            for(GroundPredicateSymbol sym : groundMln.symbols)
+            {
+                if(sym.symbol.equals(symbolName))
+                {
+                    gp.symbol = new GroundPredicateSymbol(sym.id,symbolName, sym.values);
+                    break;
+                }
+            }
+            for(String term : termNames)
+            {
+                gp.terms.add(Integer.parseInt(term));
+            }
+
+            int gpIndex = groundMln.groundPredicates.indexOf(gp);
+            evidence.predIdVal.put(gpIndex, Integer.parseInt(value));
+        }
+        return evidence;
+    }
 
 
 	public static void main(String []args) throws FileNotFoundException {

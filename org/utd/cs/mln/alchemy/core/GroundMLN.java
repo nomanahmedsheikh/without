@@ -9,6 +9,7 @@ import java.util.Set;
  * Created by Happy on 2/28/17.
  */
 public class GroundMLN {
+    public List<GroundPredicateSymbol> symbols = new ArrayList<>();
     public List<GroundPredicate> groundPredicates = new ArrayList();
     public List<GroundFormula> groundFormulas = new ArrayList<>();
 }
