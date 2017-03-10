@@ -129,14 +129,14 @@ public class MLN {
 	}
 
 	public static Term create_new_term(Term term) {
-		int type = term.type;
+		String type = term.type;
 		List<Integer> domain = new ArrayList<Integer>();
 		for(int k=0;k<term.domain.size();k++)
 			domain.add(term.domain.get(k));
 		return new Term(type,domain);
 	}
 	public static PredicateSymbol create_new_symbol(PredicateSymbol symbol) {
-		List<Integer> var_types = new ArrayList<Integer>();
+		List<String> var_types = new ArrayList<String>();
 		for(int i=0;i<symbol.variable_types.size();i++)
 			var_types.add(symbol.variable_types.get(i));
 		PredicateSymbol newSymbol = new PredicateSymbol(symbol.id,symbol.symbol,var_types,symbol.values,symbol.pweight,symbol.nweight);
@@ -335,6 +335,25 @@ public class MLN {
 		max_predicate_id = (0);
 		maxDegree = (-1);
 	}
+
+    public void overWriteDomain(Map<String, Set<Integer>> varTypeToDomain) {
+	    for(Formula formula : formulas)
+        {
+            for(WClause clause : formula.clauses)
+            {
+                for(Atom atom : clause.atoms)
+                {
+                    for(Term term : atom.terms)
+                    {
+                        Set<Integer> domain = varTypeToDomain.get(term.type);
+                        term.domain.clear();
+                        term.domain.addAll(domain);
+                    }
+                }
+            }
+        }
+
+    }
 
 
 	/*

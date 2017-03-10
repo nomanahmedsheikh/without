@@ -99,7 +99,7 @@ public class GibbsSampler_v2 {
         }// end of formula
     }
 
-    public void infer(String out_file)
+    public void infer(PrintWriter writer)
     {
         init();
 
@@ -148,27 +148,22 @@ public class GibbsSampler_v2 {
                 marginals.get(i).set(j,marg);
             }
         }
-        writeMarginal(marginals, out_file);
+        writeMarginal(marginals, writer);
         System.out.println("Gibbs Sampling completed in : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
     }
 
-    private void writeMarginal(List<List<Double>> marginals, String out_file)
+    private void writeMarginal(List<List<Double>> marginals, PrintWriter writer)
     {
-        try
+
+        for(int i = 0 ; i < marginals.size() ; i++)
         {
-            PrintWriter writer = new PrintWriter(out_file);
-            for(int i = 0 ; i < marginals.size() ; i++)
+            for(int j = 0 ; j < marginals.get(i).size() ; j++)
             {
-                for(int j = 0 ; j < marginals.get(i).size() ; j++)
-                {
-                    double marginal = marginals.get(i).get(j);
-                    writer.println(state.groundMLN.groundPredicates.get(i) + " = " + j + " " + marginal);
-                }
+                double marginal = marginals.get(i).get(j);
+                writer.println(state.groundMLN.groundPredicates.get(i) + " = " + j + " " + marginal);
             }
-            writer.close();
         }
-        catch(IOException e) {
-        }
+
     }
 
     private int performGibbsStep(int gpId) {

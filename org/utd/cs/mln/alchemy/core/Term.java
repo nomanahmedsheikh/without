@@ -7,14 +7,14 @@ import java.util.Set;
 public class Term {
 
 	// There is a one to one mapping between constants and the domain
-	public int type;
+	public String type;
 	public List<Integer> domain = new ArrayList<Integer>();
 	public List<Set<Integer>> segmentDomain = new ArrayList<Set<Integer>>(); 
 
 	public Term() {
 	}
 
-	public Term(int type_, List<Integer> domain_) {
+	public Term(String type_, List<Integer> domain_) {
 		type = type_;
 		domain = new ArrayList<Integer>(domain_);
 	}
@@ -24,7 +24,7 @@ public class Term {
 		segmentDomain = new ArrayList<>(hyperCube_);
 	}
 	*/
-	public Term(int type_, int value) {
+	public Term(String type_, int value) {
 		type = type_;
 		domain = new ArrayList<Integer>(1);
 		domain.set(0, value);

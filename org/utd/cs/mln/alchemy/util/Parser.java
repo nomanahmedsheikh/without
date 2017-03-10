@@ -32,7 +32,44 @@ public class Parser {
 	
 	private static final String REGEX_ESCAPE_CHAR = "\\";
 
-	private enum ParserState {
+    public Map<String, Set<Integer>> collectDomain(String dbFile) throws FileNotFoundException {
+
+        Map<String, Set<Integer>> varTypeToDomain = new HashMap<>();
+        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(dbFile))));
+        Evidence evidence = new Evidence();
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine().replaceAll("\\s", "");
+
+            if (line.isEmpty()) {
+                continue;
+            }
+            String[] predArr = line.split(REGEX_ESCAPE_CHAR + LEFTPRNTH);
+            String symbolName = predArr[0];
+            String[] predArr2 = predArr[1].split(EQUALSTO);
+            String[] termNames = predArr2[0].replace(RIGHTPRNTH, "").split(COMMASEPARATOR);
+            for(PredicateSymbol symbol : mln.symbols)
+            {
+                if(symbol.symbol.equals((symbolName)))
+                {
+                    for(int i = 0 ; i < termNames.length ; i++)
+                    {
+                        String var_type = symbol.variable_types.get(i);
+                        if(!varTypeToDomain.containsKey(var_type))
+                        {
+                            varTypeToDomain.put(var_type, new HashSet<>());
+                        }
+                        varTypeToDomain.get(var_type).add(Integer.parseInt(termNames[i]));
+                    }
+                    break;
+                }
+            }
+
+        }
+        scanner.close();
+        return varTypeToDomain;
+    }
+
+    private enum ParserState {
 		Domain,
 		Values, // Added by Happy
 		Predicate,
@@ -74,7 +111,7 @@ public class Parser {
 		for(int k=0;k<domainSize;k++)
 			iDomain.add(k);
 		//create a new term
-		Term term = new Term(0,iDomain);
+		Term term = new Term("0",iDomain);
 		return term;
 	}
 
@@ -91,6 +128,10 @@ public class Parser {
 		{
 			PredicateSymbol symbol = MLN.create_new_symbol(mln.symbols.get(predicateSymbolIndex.get(i)));
 			List<Term> terms = iTermsList.get(i);
+			for(int j = 0 ; j < terms.size() ; j++)
+            {
+                terms.get(j).type = new String(symbol.variable_types.get(j));
+            }
 			Atom atom = new Atom(symbol,terms);
 			clause.atoms.add(atom);
 		}
@@ -201,7 +242,7 @@ public class Parser {
         }
         for(int j=0;j<atomStrings.size();j++)
         {
-            //for each term of atom i, check if it has already appeared in previous atoms of formula
+            //for each term of atom j, check if it has already appeared in previous atoms of formula
             List<Term> iTerms = new ArrayList<Term>();
             for (int i = 0; i < sTermsList.get(j).size(); i++) {
                 iTerms.add(null);
@@ -229,7 +270,7 @@ public class Parser {
                         System.out.println("Constant does not match predicate's domain. "  + domainList.get(domainIndex).name );
                         System.exit(-1);
                     }
-                    iTerms.set(k, new Term(0,id));
+                    iTerms.set(k, new Term("0",id));
                 }
                 else
                 {
@@ -352,9 +393,9 @@ public class Parser {
 		String valuesName = predArr2[1];
 		String[] termNames = predArr2[0].replace(RIGHTPRNTH, "").split(COMMASEPARATOR);
 
-		List<Integer> var_types = new ArrayList<Integer>();
+		List<String> var_types = new ArrayList<>();
 		for(int m=0; m < termNames.length; m++) {
-			var_types.add(0);
+			var_types.add(termNames[m]);
 		}
 
 		int matchingIndex = -1;

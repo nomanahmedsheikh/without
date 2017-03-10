@@ -11,7 +11,7 @@ public class PredicateSymbol {
 	public int id;
 	public int parentId;
 	public String symbol;
-	public List<Integer> variable_types = new ArrayList<Integer>();
+	public List<String> variable_types = new ArrayList<>();
 	public Values values;
 	public boolean isOriginalSymbol;
 	public WorldState world;
@@ -30,7 +30,7 @@ public class PredicateSymbol {
 	public PredicateSymbol() {
 	}
 
-	public PredicateSymbol(int id_, String symbol_, List<Integer> var_types, Values values_,
+	public PredicateSymbol(int id_, String symbol_, List<String> var_types, Values values_,
 			LogDouble pweight_, LogDouble nweight_) {
 		id = id_;
 		symbol = symbol_;
