@@ -37,7 +37,7 @@ public class FullyGrindingMill {
         groundMln.groundPredicates.addAll(groundPredicatesList);
         for(PredicateSymbol symbol : mln.symbols)
         {
-            groundMln.symbols.add(new GroundPredicateSymbol(symbol.id, symbol.symbol, symbol.values));
+            groundMln.symbols.add(new GroundPredicateSymbol(symbol.id, symbol.symbol, symbol.values, symbol.world));
         }
         return groundMln;
     }
@@ -72,7 +72,7 @@ public class FullyGrindingMill {
                     Atom oldAtom = clause.atoms.get(j); // first order atom
                     int valTrue = clause.valTrue.get(j);
                     GroundPredicate gp = new GroundPredicate(); // GroundPredicate to create
-                    gp.symbol = new GroundPredicateSymbol(oldAtom.symbol.id,oldAtom.symbol.symbol,oldAtom.symbol.values);
+                    gp.symbol = new GroundPredicateSymbol(oldAtom.symbol.id,oldAtom.symbol.symbol,oldAtom.symbol.values, oldAtom.symbol.world);
                     // Fill in the terms with constants
                     for(Term term : oldAtom.terms)
                     {
@@ -204,12 +204,12 @@ public class FullyGrindingMill {
                     GroundPredicate gp = groundMln.groundPredicates.get(gpIndex);
                     BitSet b = gc.grounPredBitSet.get(gc.globalToLocalPredIndex.get(gpIndex));
                     // If this gp is not evidence, then add it
-                    if(!evidence.predIdVal.containsKey(gpIndex))
+                    if(!evidence.predIdVal.containsKey(gpIndex) && gp.symbol.world == PredicateSymbol.WorldState.open)
                     {
                         GroundPredicate newGp = new GroundPredicate();
 
                         //TODO : currently, no copy c'tor called
-                        newGp.symbol = new GroundPredicateSymbol(gp.symbol.id, gp.symbol.symbol,gp.symbol.values);
+                        newGp.symbol = new GroundPredicateSymbol(gp.symbol.id, gp.symbol.symbol,gp.symbol.values, gp.symbol.world);
 
                         // Fill in the terms with constants
                         for(Integer term : gp.terms)
@@ -244,10 +244,19 @@ public class FullyGrindingMill {
 
                     else
                     {
-                        if(b.get(evidence.predIdVal.get(gpIndex)))
+                        if(evidence.predIdVal.containsKey(gpIndex)) {
+                            if (b.get(evidence.predIdVal.get(gpIndex))) {
+                                clauseToRemove = true;
+                                break;
+                            }
+                        }
+                        else
                         {
-                            clauseToRemove = true;
-                            break;
+                            if(b.get(0)) // If it is closed world and not in evidence, then we assume that its true val is 0.
+                            {
+                                clauseToRemove = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -284,7 +293,7 @@ public class FullyGrindingMill {
         for(GroundPredicate gp : newGpList)
         {
             GroundPredicateSymbol gps = gp.symbol;
-            newGroundMln.symbols.add(new GroundPredicateSymbol(gps.id, gps.symbol, gps.values));
+            newGroundMln.symbols.add(new GroundPredicateSymbol(gps.id, gps.symbol, gps.values, gps.world));
         }
         return newGroundMln;
     }

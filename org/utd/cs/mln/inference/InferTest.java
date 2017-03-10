@@ -16,10 +16,16 @@ import java.util.Set;
  * Created by Happy on 2/28/17.
  */
 public class InferTest {
+    public static ArrayList<String> open_world = new ArrayList<>();
+    public static ArrayList<String> closed_world = new ArrayList<>();
+    public static ArrayList<String> hidden_world = new ArrayList<>();
     public static void main(String []args) throws FileNotFoundException, CloneNotSupportedException {
         MLN mln = new MLN();
         String filename = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_mln.txt";
+        open_world.add("C");
+        closed_world.add("S");
         Parser parser = new Parser(mln);
+
         parser.parseInputMLNFile(filename);
         FullyGrindingMill fgm = new FullyGrindingMill();
         System.out.println("Creating MRF...");

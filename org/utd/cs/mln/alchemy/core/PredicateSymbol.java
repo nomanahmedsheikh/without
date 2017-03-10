@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.utd.cs.gm.core.LogDouble;
 
+
 public class PredicateSymbol {
 
 	public int id;
@@ -13,10 +14,17 @@ public class PredicateSymbol {
 	public List<Integer> variable_types = new ArrayList<Integer>();
 	public Values values;
 	public boolean isOriginalSymbol;
+	public WorldState world;
 	public LogDouble pweight;
 	public LogDouble nweight;
 
 	public String printString;
+
+	public enum WorldState {
+		open,
+		closed, // Added by Happy
+		hidden;
+	};
 
 
 	public PredicateSymbol() {

@@ -7,11 +7,13 @@ public class GroundPredicateSymbol {
     public int id;
     public String symbol;
     public Values values;
+    public PredicateSymbol.WorldState world;
 
-    public GroundPredicateSymbol(int id, String symbol, Values values) {
+    public GroundPredicateSymbol(int id, String symbol, Values values, PredicateSymbol.WorldState world) {
         this.id = id;
         this.symbol = symbol;
         this.values = values;
+        this.world = world;
     }
 
 

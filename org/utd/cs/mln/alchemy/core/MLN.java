@@ -141,6 +141,7 @@ public class MLN {
 			var_types.add(symbol.variable_types.get(i));
 		PredicateSymbol newSymbol = new PredicateSymbol(symbol.id,symbol.symbol,var_types,symbol.values,symbol.pweight,symbol.nweight);
 		newSymbol.parentId = symbol.parentId;
+		newSymbol.world = symbol.world;
 		return newSymbol;
 	}
 	
@@ -334,6 +335,7 @@ public class MLN {
 		max_predicate_id = (0);
 		maxDegree = (-1);
 	}
+
 
 	/*
 	 * This method takes an mln and evidence list as input, and modifies input mln into new normal mln.

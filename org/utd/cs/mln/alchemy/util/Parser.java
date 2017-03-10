@@ -6,9 +6,11 @@ import java.io.FileNotFoundException;
 import java.io.InputStreamReader;
 import java.util.*;
 
+import com.sun.tools.javac.comp.Infer;
 import org.utd.cs.gm.core.LogDouble;
 import org.utd.cs.gm.utility.Pair;
 import org.utd.cs.mln.alchemy.core.*;
+import org.utd.cs.mln.inference.InferTest;
 
 public class Parser {
 	public static final String DOMAINSTART = "#domains";
@@ -372,7 +374,19 @@ public class Parser {
 		//create a new predicate symbol
 		PredicateSymbol p = new PredicateSymbol(predicateId,symbolName,var_types, valuesList.get(matchingIndex), LogDouble.ONE,LogDouble.ONE);
 		//predicateList.push_back(p);
-		mln.symbols.add(p);
+		if(InferTest.closed_world.contains(p.symbol))
+        {
+            p.world = PredicateSymbol.WorldState.closed;
+        }
+        else if(InferTest.hidden_world.contains(p.symbol))
+        {
+            p.world = PredicateSymbol.WorldState.hidden;
+        }
+        else
+        {
+            p.world = PredicateSymbol.WorldState.open;
+        }
+        mln.symbols.add(p);
 
 		//Build the map for this predicate;
 		//For predicateid, generate a List of domainIds that index Domains
@@ -475,7 +489,7 @@ public class Parser {
             {
                 if(sym.symbol.equals(symbolName))
                 {
-                    gp.symbol = new GroundPredicateSymbol(sym.id,symbolName, sym.values);
+                    gp.symbol = new GroundPredicateSymbol(sym.id,symbolName, sym.values, sym.world);
                     break;
                 }
             }
@@ -490,11 +504,4 @@ public class Parser {
         return evidence;
     }
 
-
-	public static void main(String []args) throws FileNotFoundException {
-        MLN mln = new MLN();
-        String filename = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_mln.txt";
-        Parser parser = new Parser(mln);
-        parser.parseInputMLNFile(filename);
-    }
 }
