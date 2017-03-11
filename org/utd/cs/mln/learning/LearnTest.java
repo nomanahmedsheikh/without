@@ -1,4 +1,4 @@
-package org.utd.cs.mln.inference;
+package org.utd.cs.mln.learning;
 
 import org.utd.cs.gm.utility.Timer;
 import org.utd.cs.mln.alchemy.core.Evidence;
@@ -6,20 +6,21 @@ import org.utd.cs.mln.alchemy.core.GroundMLN;
 import org.utd.cs.mln.alchemy.core.MLN;
 import org.utd.cs.mln.alchemy.util.FullyGrindingMill;
 import org.utd.cs.mln.alchemy.util.Parser;
+import org.utd.cs.mln.inference.GibbsSampler_v2;
 
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Created by Happy on 2/28/17.
+ * Created by Happy on 3/11/17.
  */
-public class InferTest {
+public class LearnTest {
     public static ArrayList<String> open_world = new ArrayList<>();
     public static ArrayList<String> closed_world = new ArrayList<>();
     public static ArrayList<String> hidden_world = new ArrayList<>();
@@ -31,9 +32,10 @@ public class InferTest {
         open_world.add("C");
         closed_world.add("S");
         int numDb = 2;
-        ArrayList<MLN> mlns = new ArrayList<>();
-        ArrayList<GroundMLN> groundMlns = new ArrayList<>();
-        ArrayList<String> dbFiles = new ArrayList<>();
+        List<MLN> mlns = new ArrayList<>();
+        List<GroundMLN> groundMlns = new ArrayList<>();
+        List<String> dbFiles = new ArrayList<>();
+        List<GibbsSampler_v2> inferences = new ArrayList<>();
         dbFiles.add(evidence_file1);
         dbFiles.add(evidence_file2);
         FullyGrindingMill fgm = new FullyGrindingMill();
@@ -54,28 +56,12 @@ public class InferTest {
             System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time)/1000.0));
             System.out.println("Total number of ground formulas : " + groundMln.groundFormulas.size());
 
-            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, 1000, 10000, false);
-            PrintWriter writer = null;
-            try {
-                if(i == 0)
-                {
-                    writer = new PrintWriter(out_file);
-                }
-                else
-                {
-                    writer = new PrintWriter(new FileOutputStream(out_file, true));
-                }
-            }
-            catch(IOException e) {
-            }
-            gs.infer();
-            gs.writeMarginal(writer);
-            writer.close();
+            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, 1000, 10000, true);
+            inferences.add(gs);
         }
 
-
-
-
-
+        // Start learning
+        DiscLearner dl = new DiscLearner(inferences, 100, 2.0, 0.00001, Double.MAX_VALUE, false, true);
+        dl.learnWeights();
     }
 }

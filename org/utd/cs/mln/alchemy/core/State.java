@@ -1,5 +1,6 @@
 package org.utd.cs.mln.alchemy.core;
 
+import org.utd.cs.gm.core.LogDouble;
 import org.utd.cs.gm.utility.Pair;
 
 import java.util.*;
@@ -33,5 +34,43 @@ public class State {
                 numTrueLiterals.get(i).add(0);
             }
         }
+    }
+
+    public void setGroundFormulaWtsToParentWts(MLN mln) {
+        for(GroundFormula gf : groundMLN.groundFormulas)
+        {
+            int parentFormulaId = gf.parentFormulaId;
+            gf.weight = new LogDouble(mln.formulas.get(parentFormulaId).weight.getValue(), true);
+        }
+    }
+
+    public int[] getNumTrueGndings(int numWts)
+    {
+        int []numTrueGndings = new int[numWts];
+        for(GroundFormula gf : groundMLN.groundFormulas)
+        {
+            boolean isFormulaSatisfied = true;
+            for(GroundClause gc : gf.groundClauses)
+            {
+                boolean isClauseSatisfied = false;
+                for(Integer gpId : gc.groundPredIndices)
+                {
+                    BitSet b = gc.grounPredBitSet.get(gc.globalToLocalPredIndex.get(gpId));
+                    int trueVal = truthVals.get(gpId);
+                    isClauseSatisfied |= b.get(trueVal);
+                    if(isClauseSatisfied)
+                        break;
+                }
+                isFormulaSatisfied &= isClauseSatisfied;
+                if(!isFormulaSatisfied)
+                    break;
+            }
+            if(isFormulaSatisfied)
+            {
+                int parentFormulaId = gf.parentFormulaId;
+                numTrueGndings[parentFormulaId]++;
+            }
+        }
+        return numTrueGndings;
     }
 }

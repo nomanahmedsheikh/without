@@ -12,16 +12,26 @@ import java.util.concurrent.ThreadLocalRandom;
  * Created by Happy on 3/2/17.
  */
 public class GibbsSampler_v2 {
+    public MLN mln;
+    public Evidence evidence;
     public State state;
     public List<List<Integer>> countNumAssignments = new ArrayList<>(); // For each groundPred in state.mln.groundPreds, stores how many times this groundpred gets assigned to a  particular value. Used for calculating marginal prob
     public List<List<Double>> marginals = new ArrayList<>();
-    int numBurnSteps, numIter;
+    public List<List<Double>> allFormulaTrueCnts = new ArrayList<>(); // allFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample
+    public List<List<Double>> oldAllFormulaTrueCnts = new ArrayList<>(); // oldAllFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample in the previous iter of learning
+    public double[] numFormulaTrueCnts, numFormulaTrueSqCnts; // average of true counts of formulas over all samples.
+    boolean trackFormulaCounts = false, saveAllCounts = false;
 
-    GibbsSampler_v2(GroundMLN groundMLN, int numBurnSteps, int numIter)
+    public int numBurnSteps, numIter;
+
+    public GibbsSampler_v2(MLN mln, GroundMLN groundMLN, Evidence evidence, int numBurnSteps, int numIter, boolean trackFormulaCounts)
     {
+        this.mln = mln;
+        this.evidence = evidence;
         state = new State(groundMLN);
         this.numBurnSteps = numBurnSteps;
         this.numIter = numIter;
+        this.trackFormulaCounts = trackFormulaCounts;
         int numGroundPreds = groundMLN.groundPredicates.size();
 
         // Intialize all counts of assignments to 0.
@@ -37,6 +47,9 @@ public class GibbsSampler_v2 {
             int numValues = state.groundMLN.groundPredicates.get(i).numPossibleValues;
             marginals.add(new ArrayList<>(Collections.nCopies(numValues,0.0)));
         }
+
+        numFormulaTrueCnts = new double[mln.formulas.size()];
+        numFormulaTrueSqCnts = new double[mln.formulas.size()];
     }
 
     private void init()
@@ -50,6 +63,10 @@ public class GibbsSampler_v2 {
             allGndPredIndices.add(i);
         }
         updateWtsForGndPreds(allGndPredIndices);
+        for (int i = 0; i < numFormulaTrueCnts.length; i++) {
+            numFormulaTrueCnts[i] = 0.0;
+            numFormulaTrueSqCnts[i] = 0.0;
+        }
     }
 
     private void doInitialRandomAssignment() {
@@ -99,7 +116,7 @@ public class GibbsSampler_v2 {
         }// end of formula
     }
 
-    public void infer(PrintWriter writer)
+    public void infer()
     {
         init();
 
@@ -123,15 +140,37 @@ public class GibbsSampler_v2 {
 
         System.out.println("Gibbs sampling started...");
         time = System.currentTimeMillis();
+        allFormulaTrueCnts = new ArrayList<>();
         for(int i =1 ; i <= numIter; i++)
         {
             for(int gpId =0; gpId < numGndPreds; gpId++){
                 int assignment = performGibbsStep(gpId);
                 countNumAssignments.get(gpId).set(assignment, countNumAssignments.get(gpId).get(assignment)+1);
             }
+            if(trackFormulaCounts)
+            {
+                int numWts = mln.formulas.size();
+                int []numTrueGndings = state.getNumTrueGndings(numWts);
+                for (int j = 0; j < numWts; j++) {
+                    numFormulaTrueCnts[j] += numTrueGndings[j];
+                    numFormulaTrueSqCnts[j] += numTrueGndings[j]*numTrueGndings[j];
+                }
+                ArrayList<Double> temp = new ArrayList<>();
+                for(double d : numFormulaTrueCnts)
+                {
+                    temp.add(d);
+                }
+                allFormulaTrueCnts.add(temp);
+            }
             if(i%100 == 0) {
                 System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
             }
+        }
+
+        for(int i = 0 ; i < numFormulaTrueCnts.length ; i++)
+        {
+            numFormulaTrueCnts[i]/=numIter;
+            numFormulaTrueSqCnts[i]/=numIter;
         }
 
         for(int i = 0 ; i < numGndPreds ; i++)
@@ -148,11 +187,10 @@ public class GibbsSampler_v2 {
                 marginals.get(i).set(j,marg);
             }
         }
-        writeMarginal(marginals, writer);
         System.out.println("Gibbs Sampling completed in : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
     }
 
-    private void writeMarginal(List<List<Double>> marginals, PrintWriter writer)
+    public void writeMarginal(PrintWriter writer)
     {
 
         for(int i = 0 ; i < marginals.size() ; i++)
@@ -331,5 +369,90 @@ public class GibbsSampler_v2 {
         return ThreadLocalRandom.current().nextInt(0,numPossibleVals);
     }
 
+    public double[] getHessianVectorProduct(double[] v) {
+        int numFormulas = mln.formulas.size();
+        int numSamples = numIter;
 
+        // For minimizing the negative log likelihood,
+        // the ith element of H v is:
+        //   E[n_i * vn] - E[n_i] E[vn]
+        // where n is the vector of all clause counts
+        // and vn is the dot product of v and n.
+
+        double sumVN = 0;
+        double []sumN = new double[numFormulas];
+        double []sumNiVN = new double[numFormulas];
+
+        // Get sufficient statistics from each sample,
+        // so we can compute expectations
+        for (int s = 0; s < numSamples; s++)
+        {
+            List<Double> n = allFormulaTrueCnts.get(s);
+
+            // Compute v * n
+            double vn = 0;
+            for (int i = 0; i < numFormulas; i++)
+                vn += v[i] * n.get(i);
+
+            // Tally v*n, n_i, and n_i v*n
+            sumVN += vn;
+            for (int i = 0; i < numFormulas; i++)
+            {
+                sumN[i]    += n.get(i);
+                sumNiVN[i] += n.get(i) * vn;
+            }
+        }
+
+        // Compute actual product from the sufficient stats
+        double []product = new double[numFormulas];
+        for (int formulano = 0; formulano < numFormulas; formulano++)
+        {
+            double E_vn = sumVN/numSamples;
+            double E_ni = sumN[formulano]/numSamples;
+            double E_nivn = sumNiVN[formulano]/numSamples;
+            product[formulano] = E_nivn - E_ni * E_vn;
+        }
+
+        return product;
+    }
+
+    public void resetCnts() {
+        Arrays.fill(numFormulaTrueCnts,0.0);
+        Arrays.fill(numFormulaTrueSqCnts,0.0);
+        allFormulaTrueCnts = new ArrayList<>();
+    }
+
+    public void saveAllCounts(boolean saveCounts) {
+        if(saveAllCounts == saveCounts)
+            return;
+
+        saveAllCounts = saveCounts;
+        allFormulaTrueCnts = new ArrayList<>();
+        oldAllFormulaTrueCnts = new ArrayList<>();
+    }
+
+    public void restoreCnts() {
+        if (!saveAllCounts)
+            return;
+
+        resetCnts();
+
+        allFormulaTrueCnts = oldAllFormulaTrueCnts;
+        for (int i = 0; i < allFormulaTrueCnts.size(); i++)
+        {
+            int numcounts = allFormulaTrueCnts.get(i).size();
+            for (int j = 0; j < numcounts; j++)
+            {
+                double currcount = allFormulaTrueCnts.get(i).get(j);
+                numFormulaTrueCnts[j]   += currcount;
+                numFormulaTrueSqCnts[j] += currcount * currcount;
+            }
+        }
+    }
+
+    public void saveCnts() {
+        if (!saveAllCounts)
+            return;
+        oldAllFormulaTrueCnts = allFormulaTrueCnts;
+    }
 }
