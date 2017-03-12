@@ -22,11 +22,11 @@ public class InferTest {
     public static ArrayList<String> hidden_world = new ArrayList<>();
     public static void main(String []args) throws FileNotFoundException, CloneNotSupportedException {
         String filename = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_mln.txt";
-        String out_file = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_result.txt";
-        String evidence_file1 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_evid1.txt";
-        String evidence_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_evid2.txt";
-        String train_file1 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_train1.txt";
-        String train_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_train2.txt";
+        String out_file = "/Users/Happy/phd/experiments/without/data/Imdb/imdb_results2.txt";
+        String evidence_file1 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
+        String evidence_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
+        String train_file1 = "/Users/Happy/phd/experiments/without/data/smoke/evidence.txt";
+        String train_file2 = "/Users/Happy/phd/experiments/without/data/Imdb/imdb.2_train.txt";
         open_world.add("C");
         open_world.add("S");
         open_world.add("F");
@@ -78,10 +78,6 @@ public class InferTest {
             gs.writeMarginal(writer);
             writer.close();
         }
-
-
-
-
 
     }
 }

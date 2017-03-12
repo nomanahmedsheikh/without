@@ -129,9 +129,9 @@ public class GibbsSampler_v2 {
         for(int i =1 ; i <= numBurnSteps; i++)
         {
             for(int gpId =0; gpId < numGndPreds; gpId++){
-                performGibbsStep(gpId);
+                performGibbsStep(gpId, (gpId+1)%numGndPreds);
             }
-            if(i%1000 == 0) {
+            if(i%100 == 0) {
                 System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
             }
         }
@@ -144,7 +144,7 @@ public class GibbsSampler_v2 {
         for(int i =1 ; i <= numIter; i++)
         {
             for(int gpId =0; gpId < numGndPreds; gpId++){
-                int assignment = performGibbsStep(gpId);
+                int assignment = performGibbsStep(gpId, (gpId+1)%numGndPreds);
                 countNumAssignments.get(gpId).set(assignment, countNumAssignments.get(gpId).get(assignment)+1);
             }
             if(trackFormulaCounts)
@@ -160,7 +160,7 @@ public class GibbsSampler_v2 {
 
                 allFormulaTrueCnts.add(temp);
             }
-            if(i%1000 == 0) {
+            if(i%100 == 0) {
                 System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
             }
         }
@@ -203,21 +203,27 @@ public class GibbsSampler_v2 {
 
     }
 
-    private int performGibbsStep(int gpId) {
+    private int performGibbsStep(int gpId, int nextGpId) {
         int assignment = get_probabilistic_assignment(state.wtsPerPredPerVal.get(gpId));
         int prev_assignment = state.truthVals.get(gpId);
         state.truthVals.set(gpId, assignment);
+        List<Integer> affectedGndPredIndices = new ArrayList<>();
         if(assignment != prev_assignment)
         {
-            List<Integer> affectedGndPredIndices = new ArrayList<>(); // Markov Blanket for current flipped atom. When flipping an atom, if the value changes then we need to update satWeights for all these M.B predicates.
+             // Markov Blanket for current flipped atom. When flipping an atom, if the value changes then we need to update satWeights for all these M.B predicates.
             findMarkovBlanket(gpId, assignment, prev_assignment, affectedGndPredIndices);
-            updateWtsForGndPreds(affectedGndPredIndices);
+            //updateWtsForGndPreds(affectedGndPredIndices);
         }
+
+        affectedGndPredIndices.clear();
+        affectedGndPredIndices.add(nextGpId);
+        updateWtsForGndPreds(affectedGndPredIndices);
+
         return assignment;
     }
 
     private void findMarkovBlanket(int gpId, int assignment, int prev_assignment, List<Integer> markov_blanket) {
-        Set<Integer> mbSet = new HashSet<>();
+        //Set<Integer> mbSet = new HashSet<>();
         GroundPredicate gp = state.groundMLN.groundPredicates.get(gpId);
         for(int formulaId : gp.groundFormulaIds.keySet())
         {
@@ -251,11 +257,11 @@ public class GibbsSampler_v2 {
                 }
             }
 
-            GroundFormula gf = state.groundMLN.groundFormulas.get(formulaId);
-            mbSet.addAll(gf.groundPredIndices);
-            mbSet.remove(gpId);
+//            GroundFormula gf = state.groundMLN.groundFormulas.get(formulaId);
+//            mbSet.addAll(gf.groundPredIndices);
+//            mbSet.remove(gpId);
         }
-        markov_blanket.addAll(mbSet);
+//        markov_blanket.addAll(mbSet);
     }
 
     private void updateWtsForGndPreds(List<Integer> affectedGndPredIndices) {

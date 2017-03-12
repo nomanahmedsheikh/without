@@ -26,16 +26,20 @@ public class LearnTest {
     public static ArrayList<String> closed_world = new ArrayList<>();
     public static ArrayList<String> hidden_world = new ArrayList<>();
     public static void main(String []args) throws FileNotFoundException, CloneNotSupportedException {
+        long totaltime = System.currentTimeMillis();
         String filename = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_mln.txt";
-        String out_file = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_result.txt";
-        String evidence_file1 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_evid1.txt";
-        String evidence_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_evid2.txt";
-        String train_file1 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_train1.txt";
-        String train_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_train2.txt";
+        String out_file = "/Users/Happy/phd/experiments/without/data/Imdb/imdb_results.txt";
+        String evidence_file1 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
+        String evidence_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
+        String train_file1 = "/Users/Happy/phd/experiments/without/data/smoke/evidence.txt";
+        String train_file2 = "/Users/Happy/phd/experiments/without/data/Imdb/imdb.2_train.txt";
+//        open_world.add("actor");
+//        open_world.add("director");
+//        open_world.add("movie");
+//        open_world.add("workedUnder");
         open_world.add("C");
         open_world.add("S");
-        //open_world.add("F");
-        //closed_world.add("S");
+        open_world.add("F");
         List<MLN> mlns = new ArrayList<>();
         List<GroundMLN> groundMlns = new ArrayList<>();
         List<String> evidFiles = new ArrayList<>();
@@ -65,12 +69,13 @@ public class LearnTest {
             System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time)/1000.0));
             System.out.println("Total number of ground formulas : " + groundMln.groundFormulas.size());
 
-            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, truth, 100, 5000, true);
+            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, truth, 100, 1000, true);
             inferences.add(gs);
         }
 
         // Start learning
         DiscLearner dl = new DiscLearner(inferences, 100, 100.0, 0.00001, Double.MAX_VALUE, false, true);
         dl.learnWeights();
+        System.out.println("Total Time taken : " + Timer.time((System.currentTimeMillis() - totaltime)/1000.0));
     }
 }

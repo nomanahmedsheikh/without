@@ -20,7 +20,7 @@ public class DiscLearner {
     public double[][] formulaTrainCnts;
     public int num_iter, domain_cnt, backtrackCount, maxBacktracks;
     public double cg_lambda, cg_max_lambda, alpha, min_ll_change;
-    public boolean withEM = false, backtracked = false, preConditionCG, dldebug=true;
+    public boolean withEM = false, backtracked = false, preConditionCG, dldebug=false;
     public Method method = Method.CG;
 
     public DiscLearner(List<GibbsSampler_v2> inferences, int num_iter, double lambda, double min_ll_change, double max_lambda,
@@ -61,7 +61,6 @@ public class DiscLearner {
             // TODO : implement for EM
         }
 
-        boolean backtracked = false;
         for (int i = 0; i < domain_cnt; i++) {
             inferences.get(i).saveAllCounts(true);
         }
