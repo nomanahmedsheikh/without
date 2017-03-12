@@ -3,7 +3,6 @@ package org.utd.cs.mln.inference;
 import org.utd.cs.gm.utility.Timer;
 import org.utd.cs.mln.alchemy.core.*;
 
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -13,7 +12,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class GibbsSampler_v2 {
     public MLN mln;
-    public Evidence evidence;
+    public Evidence evidence, truth;
     public State state;
     public List<List<Integer>> countNumAssignments = new ArrayList<>(); // For each groundPred in state.mln.groundPreds, stores how many times this groundpred gets assigned to a  particular value. Used for calculating marginal prob
     public List<List<Double>> marginals = new ArrayList<>();
@@ -24,10 +23,11 @@ public class GibbsSampler_v2 {
 
     public int numBurnSteps, numIter;
 
-    public GibbsSampler_v2(MLN mln, GroundMLN groundMLN, Evidence evidence, int numBurnSteps, int numIter, boolean trackFormulaCounts)
+    public GibbsSampler_v2(MLN mln, GroundMLN groundMLN, Evidence evidence, Evidence truth, int numBurnSteps, int numIter, boolean trackFormulaCounts)
     {
         this.mln = mln;
         this.evidence = evidence;
+        this.truth = truth;
         state = new State(groundMLN);
         this.numBurnSteps = numBurnSteps;
         this.numIter = numIter;
@@ -131,7 +131,7 @@ public class GibbsSampler_v2 {
             for(int gpId =0; gpId < numGndPreds; gpId++){
                 performGibbsStep(gpId);
             }
-            if(i%100 == 0) {
+            if(i%1000 == 0) {
                 System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
             }
         }
@@ -151,27 +151,26 @@ public class GibbsSampler_v2 {
             {
                 int numWts = mln.formulas.size();
                 int []numTrueGndings = state.getNumTrueGndings(numWts);
+                ArrayList<Double> temp = new ArrayList<>();
                 for (int j = 0; j < numWts; j++) {
                     numFormulaTrueCnts[j] += numTrueGndings[j];
+                    temp.add((double) numTrueGndings[j]);
                     numFormulaTrueSqCnts[j] += numTrueGndings[j]*numTrueGndings[j];
                 }
-                ArrayList<Double> temp = new ArrayList<>();
-                for(double d : numFormulaTrueCnts)
-                {
-                    temp.add(d);
-                }
+
                 allFormulaTrueCnts.add(temp);
             }
-            if(i%100 == 0) {
+            if(i%1000 == 0) {
                 System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
             }
         }
-
+        // Happy Commented this code. We will calculate average in learning code, not here.
+        /*
         for(int i = 0 ; i < numFormulaTrueCnts.length ; i++)
         {
             numFormulaTrueCnts[i]/=numIter;
             numFormulaTrueSqCnts[i]/=numIter;
-        }
+        }*/
 
         for(int i = 0 ; i < numGndPreds ; i++)
         {
@@ -437,7 +436,16 @@ public class GibbsSampler_v2 {
 
         resetCnts();
 
-        allFormulaTrueCnts = oldAllFormulaTrueCnts;
+        for (int i = 0; i < oldAllFormulaTrueCnts.size(); i++)
+        {
+            int numcounts = oldAllFormulaTrueCnts.get(i).size();
+            List<Double> temp = new ArrayList<>();
+            for (int j = 0; j < numcounts; j++)
+            {
+                temp.add(oldAllFormulaTrueCnts.get(i).get(j));
+            }
+            allFormulaTrueCnts.add(temp);
+        }
         for (int i = 0; i < allFormulaTrueCnts.size(); i++)
         {
             int numcounts = allFormulaTrueCnts.get(i).size();
@@ -453,6 +461,16 @@ public class GibbsSampler_v2 {
     public void saveCnts() {
         if (!saveAllCounts)
             return;
-        oldAllFormulaTrueCnts = allFormulaTrueCnts;
+        oldAllFormulaTrueCnts = new ArrayList<>();
+        for (int i = 0; i < allFormulaTrueCnts.size(); i++)
+        {
+            int numcounts = allFormulaTrueCnts.get(i).size();
+            List<Double> temp = new ArrayList<>();
+            for (int j = 0; j < numcounts; j++)
+            {
+                temp.add(allFormulaTrueCnts.get(i).get(j));
+            }
+            oldAllFormulaTrueCnts.add(temp);
+        }
     }
 }

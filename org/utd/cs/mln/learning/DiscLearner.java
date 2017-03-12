@@ -15,11 +15,12 @@ public class DiscLearner {
         CG;
     };
     public List<GibbsSampler_v2> inferences = new ArrayList<>();
-    public double[] formulaTrainCnts, weights, oldWeights, averageWeights, gradient, old_gradient, d, oldd,
+    public double[] weights, oldWeights, averageWeights, gradient, old_gradient, d, oldd,
             delta_pred, priorMeans, priorStdDevs;
+    public double[][] formulaTrainCnts;
     public int num_iter, domain_cnt, backtrackCount, maxBacktracks;
     public double cg_lambda, cg_max_lambda, alpha, min_ll_change;
-    public boolean withEM = false, backtracked = false, preConditionCG;
+    public boolean withEM = false, backtracked = false, preConditionCG, dldebug=true;
     public Method method = Method.CG;
 
     public DiscLearner(List<GibbsSampler_v2> inferences, int num_iter, double lambda, double min_ll_change, double max_lambda,
@@ -28,7 +29,7 @@ public class DiscLearner {
         this.inferences = inferences;
         this.num_iter = num_iter;
         this.backtrackCount = 0;
-        this.maxBacktracks = 0; //TODO : we are not handling backtracking for now, otherwise set to 1000
+        this.maxBacktracks = 1000; //TODO : we are not handling backtracking for now, otherwise set to 1000
         this.cg_lambda = lambda;
         this.min_ll_change = min_ll_change;
         this.cg_max_lambda = max_lambda;
@@ -45,7 +46,7 @@ public class DiscLearner {
         d = new double[numFormulas];
         oldd = new double[numFormulas];
         delta_pred = null;
-        formulaTrainCnts = new double[numFormulas];
+        formulaTrainCnts = new double[domain_cnt][numFormulas];
         priorMeans = new double[numFormulas];
         priorStdDevs = new double[numFormulas];
         Arrays.fill(priorStdDevs, 2);
@@ -65,7 +66,7 @@ public class DiscLearner {
             inferences.get(i).saveAllCounts(true);
         }
         long time = System.currentTimeMillis();
-        for(int iter = 0 ; iter < num_iter ; iter++)
+        for(int iter = 1 ; iter <= num_iter ; iter++)
         {
             if(iter%1 == 0) {
                 System.out.println("iter : " + iter + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
@@ -75,8 +76,13 @@ public class DiscLearner {
             {
                 //TODO: fillinmissingvalues
             }
+            System.out.println("Running inference...");
             infer();
+            System.out.println("Done Inference");
+            System.out.println("Getting gradient...");
             findGradient();
+            if(dldebug)
+                System.out.println("gradient = " + Arrays.toString(gradient));
             if(method == Method.CG) {
                 int status = updateWtsByCG(iter);
                 if(status == -1)
@@ -86,7 +92,7 @@ public class DiscLearner {
             }
         }
         System.out.println("Learning done...");
-
+        System.out.println("Final weights : " + Arrays.toString(weights));
     }
 
     private int updateWtsByCG(int iter)
@@ -108,11 +114,12 @@ public class DiscLearner {
 
             // Real change is lower bound on actual change
             realdist = dotprod(gradient, dist, numWts);
+            System.out.println("pred*dist = " + preddist);
+            System.out.println("real*dist = " + realdist);
 
         }
-        if(iter > 1)
-        {
-            double delta = realdist/preddist;
+        if(iter > 1) {
+            double delta = realdist / preddist;
 
             if (!backtracked && preddist == 0)
                 cg_lambda /= 4;
@@ -127,10 +134,8 @@ public class DiscLearner {
                 else
                     cg_lambda *= 4;
             }
-            if (delta < 0.0 && backtrackCount < maxBacktracks)
-            {
+            if (delta < 0.0 && backtrackCount < maxBacktracks) {
                 System.out.println("Backtracking...");
-                // TODO : for backtracking, uncomment this and implement restorecnts
                 for (int i = 0; i < numWts; i++)
                     weights[i] = oldWeights[i];
 
@@ -139,98 +144,104 @@ public class DiscLearner {
 
                 backtracked = true;
                 backtrackCount++;
-            }
-            else
-            {
+            } else {
                 backtracked = false;
                 backtrackCount = 0;
             }
+        }
 
-            if (!backtracked)
+        if (!backtracked)
+        {
+            for (int i = 0; i < domain_cnt; i++)
+                inferences.get(i).saveCnts();
+            double preCond[] = new double[numWts];
+            Arrays.fill(preCond, 1.0);
+            if(preConditionCG)
             {
-                for (int i = 0; i < domain_cnt; i++)
-                    inferences.get(i).saveCnts();
-                double preCond[] = new double[numWts];
-                Arrays.fill(preCond, 1.0);
-                if(preConditionCG)
-                {
-                    double variance[] = getVariance(numWts);
-                    for (int formulaNum = 0; formulaNum < numWts; formulaNum++)
-                        preCond[formulaNum] = 1.0/variance[formulaNum];
-                }
-                double beta = 0.0;
+                double variance[] = getVariance(numWts);
+                if(dldebug)
+                    System.out.println("variance : " + Arrays.toString(variance));
+                for (int formulaNum = 0; formulaNum < numWts; formulaNum++)
+                    preCond[formulaNum] = 1.0/variance[formulaNum];
+            }
+            double beta = 0.0;
 
-                // Compute beta using Polak-Ribiere form:
-                //   beta = g_j+1 (g_j+1 - g_j) / (g_j g_j)
-                // Preconditioned:
-                //   beta = g_j+1 M-1 (g_j+1 - g_j) / (g_j M-1 g_j)
-                double beta_num = 0.0;
-                double beta_denom = 0.0;
-                if (iter > 1)
+            // Compute beta using Polak-Ribiere form:
+            //   beta = g_j+1 (g_j+1 - g_j) / (g_j g_j)
+            // Preconditioned:
+            //   beta = g_j+1 M-1 (g_j+1 - g_j) / (g_j M-1 g_j)
+            double beta_num = 0.0;
+            double beta_denom = 0.0;
+            if (iter > 1)
+            {
+                for (int i = 0; i < numWts; i++)
                 {
-                    for (int i = 0; i < numWts; i++)
-                    {
-                        beta_num   += gradient[i] * preCond[i] * (gradient[i] - old_gradient[i]);
-                        beta_denom += old_gradient[i] * preCond[i] * old_gradient[i];
-                    }
-                    beta = beta_num/beta_denom;
+                    beta_num   += gradient[i] * preCond[i] * (gradient[i] - old_gradient[i]);
+                    beta_denom += old_gradient[i] * preCond[i] * old_gradient[i];
                 }
-                else
-                    beta = 0.0;
+                beta = beta_num/beta_denom;
+            }
+            else
+                beta = 0.0;
+            
+            if(dldebug)
+                System.out.println("beta = " + beta);
 
-                // Compute new direction
+            // Compute new direction
+            for (int w = 0; w < numWts; w++)
+                d[w] = -preCond[w]*gradient[w] + beta*oldd[w];
+
+            double Hd[] = getHessianVectorProduct(d);
+            alpha = computeQuadraticStepLength(Hd);
+            if (alpha < 0.0)
+            {
                 for (int w = 0; w < numWts; w++)
-                    d[w] = -preCond[w]*gradient[w] + beta*oldd[w];
-
-                double Hd[] = getHessianVectorProduct(d);
+                    d[w] = -preCond[w]*gradient[w];
+                Hd = getHessianVectorProduct(d);
                 alpha = computeQuadraticStepLength(Hd);
-                if (alpha < 0.0)
-                {
-                    for (int w = 0; w < numWts; w++)
-                        d[w] = -preCond[w]*gradient[w];
-                    Hd = getHessianVectorProduct(d);
-                    alpha = computeQuadraticStepLength(Hd);
-                }
+            }
+        }
+
+        if (!backtracked && alpha <= 0.0)
+        {
+            // If alpha is negative, then either the direction or the
+            // Hessian is in error.  We call this a backtrack so that
+            // we can gather more samples while keeping the old samples.
+            backtracked = true;
+        }
+        if (!backtracked) {
+            // Compute total weight change
+            double wchange[] = new double[numWts];
+            for (int w = 0; w < numWts; w++) {
+                //wchange[w] = d[w] * alpha + (weights[w] - oldWeights[w]) * momentum;
+                // above line was present in alchemy, but momentum is 0 always for disc learning
+                wchange[w] = d[w] * alpha;
             }
 
-            if (!backtracked && alpha <= 0.0)
-            {
-                // If alpha is negative, then either the direction or the
-                // Hessian is in error.  We call this a backtrack so that
-                // we can gather more samples while keeping the old samples.
-                backtracked = true;
+            // Convergence criteria for 2nd order methods:
+            // Stop when the maximum predicted improvement in log likelihood
+            // is very small.
+            double maxchange = -dotprod(gradient, wchange, numWts);
+            System.out.println("Maximum Estimated Improvement = " + maxchange);
+            if ((method == Method.CG) && maxchange < min_ll_change) {
+                System.out.println("Upper bound is less than " + min_ll_change + ", halting learning.");
+                return -1;
             }
-            if (!backtracked) {
-                // Compute total weight change
-                double wchange[] = new double[numWts];
-                for (int w = 0; w < numWts; w++) {
-                    //wchange[w] = d[w] * alpha + (weights[w] - oldWeights[w]) * momentum;
-                    // above line was present in alchemy, but momentum is 0 always for disc learning
-                    wchange[w] = d[w] * alpha;
-                }
 
-                // Convergence criteria for 2nd order methods:
-                // Stop when the maximum predicted improvement in log likelihood
-                // is very small.
-                double maxchange = -dotprod(gradient, wchange, numWts);
-                if ((method == Method.CG) && maxchange < min_ll_change) {
-                    System.out.println("Upper bound is less than " + min_ll_change + ", halting learning.");
-                    return -1;
-                }
+            // Save weights, gradient, and direction and adjust the weights
+            for (int w = 0; w < numWts; w++) {
+                oldWeights[w] = weights[w];
+                oldd[w] = d[w];
+                old_gradient[w] = gradient[w];
 
-                // Save weights, gradient, and direction and adjust the weights
-                for (int w = 0; w < numWts; w++) {
-                    oldWeights[w] = weights[w];
-                    oldd[w] = d[w];
-                    old_gradient[w] = gradient[w];
-
-                    weights[w] += wchange[w];
-                    averageWeights[w] = ((iter - 1) * averageWeights[w] + weights[w]) / iter;
-                }
-                delta_pred = getHessianVectorProduct(wchange);
-                for (int i = 0; i < domain_cnt; i++)
-                    inferences.get(i).resetCnts();
+                weights[w] += wchange[w];
+                averageWeights[w] = ((iter - 1) * averageWeights[w] + weights[w]) / iter;
             }
+            delta_pred = getHessianVectorProduct(wchange);
+            for (int i = 0; i < domain_cnt; i++)
+                inferences.get(i).resetCnts();
+            System.out.println("weights = " + Arrays.toString(weights));
+            System.out.println("Avg weights = " + Arrays.toString(averageWeights));
         }
         return 0;
     }
@@ -243,6 +254,13 @@ public class DiscLearner {
         double dg = dotprod(gradient, d, numWeights);
         double alpha = -dg/(dHd + cg_lambda * dd);
 
+        if(dldebug)
+        {
+            System.out.println("dHd = " + dHd);
+            System.out.println("dd = " + dd);
+            System.out.println("dg = " + dg);
+            System.out.println("alpha = " + alpha);
+        }
 
         // Because the problem is convex, the Hessian should always
         // be positive definite, and so alpha should always be non-negative.
@@ -300,7 +318,7 @@ public class DiscLearner {
     private void findFormulaTrainCnts() {
         for (int i = 0; i < domain_cnt; i++) {
             GroundMLN gm = inferences.get(i).state.groundMLN;
-            Evidence evidence = inferences.get(i).evidence;
+            Evidence truth = inferences.get(i).truth;
             for(GroundFormula gf : gm.groundFormulas)
             {
                 boolean isFormulaSatisfied = true;
@@ -310,8 +328,8 @@ public class DiscLearner {
                     for(int gpId : gc.groundPredIndices)
                     {
                         int trueVal = 0;
-                        if(evidence.predIdVal.containsKey(gpId))
-                            trueVal = evidence.predIdVal.get(gpId);
+                        if(truth.predIdVal.containsKey(gpId))
+                            trueVal = truth.predIdVal.get(gpId);
                         BitSet b = gc.grounPredBitSet.get(gc.globalToLocalPredIndex.get(gpId));
                         isClauseSatisfied |= b.get(trueVal);
                         if(isClauseSatisfied)
@@ -324,7 +342,7 @@ public class DiscLearner {
                 if(isFormulaSatisfied)
                 {
                     int parentFormulaId = gf.parentFormulaId;
-                    formulaTrainCnts[parentFormulaId]++;
+                    formulaTrainCnts[i][parentFormulaId]++;
                 }
             }
         }
@@ -333,6 +351,7 @@ public class DiscLearner {
     private void findGradient()
     {
         int numWeights = weights.length;
+        Arrays.fill(gradient,0.0);
         for (int i = 0; i < domain_cnt ; i++) {
             getGradientForDomain(gradient, i);
         }
@@ -347,7 +366,8 @@ public class DiscLearner {
     {
         double []formulaInferredCnts = inferences.get(domainIndex).numFormulaTrueCnts;
         for (int j = 0; j < formulaInferredCnts.length; j++) {
-            gradient[j] -= (formulaTrainCnts[j] - formulaInferredCnts[j]);
+            double inferredCount = formulaInferredCnts[j]/inferences.get(domainIndex).numIter;
+            gradient[j] -= (formulaTrainCnts[domainIndex][j] - inferredCount);
         }
     }
 

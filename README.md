@@ -74,3 +74,6 @@ but we can't get original element of set on which we can operate.
     (a) For a clause, maintain HashMap of groundPredIndices to BitSet vector of size numPossible Values.
     A vector tells at what values does a groundPredicate becomes true in this clause.
     So If any of these vectors becomes all ones, then this clause is true.
+    
+12/03/17:
+1. TODO : need to set numsamples for gibbs sampler = 10000/(min num of grounding of any first order clause)
