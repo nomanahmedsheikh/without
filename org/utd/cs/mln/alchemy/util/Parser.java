@@ -32,6 +32,10 @@ public class Parser {
 	
 	private static final String REGEX_ESCAPE_CHAR = "\\";
 
+    public static ArrayList<String> open_world = new ArrayList<>();
+    public static ArrayList<String> closed_world = new ArrayList<>();
+    public static ArrayList<String> hidden_world = new ArrayList<>();
+
     public Map<String, Set<Integer>> collectDomain(String evidFile, String truthFile) throws FileNotFoundException {
 
         Map<String, Set<Integer>> varTypeToDomain = new HashMap<>();
@@ -445,11 +449,11 @@ public class Parser {
 		//create a new predicate symbol
 		PredicateSymbol p = new PredicateSymbol(predicateId,symbolName,var_types, valuesList.get(matchingIndex), LogDouble.ONE,LogDouble.ONE);
 		//predicateList.push_back(p);
-		if(InferTest.closed_world.contains(p.symbol))
+		if(closed_world.contains(p.symbol))
         {
             p.world = PredicateSymbol.WorldState.closed;
         }
-        else if(InferTest.hidden_world.contains(p.symbol))
+        else if(hidden_world.contains(p.symbol))
         {
             p.world = PredicateSymbol.WorldState.hidden;
         }

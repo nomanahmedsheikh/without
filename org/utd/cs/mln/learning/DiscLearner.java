@@ -5,15 +5,19 @@ import org.utd.cs.gm.utility.Timer;
 import org.utd.cs.mln.alchemy.core.*;
 import org.utd.cs.mln.inference.GibbsSampler_v2;
 
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.util.*;
 
 /**
  * Created by Happy on 3/11/17.
  */
 public class DiscLearner {
+
     public enum Method {
         CG;
     };
+
     public List<GibbsSampler_v2> inferences = new ArrayList<>();
     public double[] weights, oldWeights, averageWeights, gradient, old_gradient, d, oldd,
             delta_pred, priorMeans, priorStdDevs;
@@ -29,7 +33,7 @@ public class DiscLearner {
         this.inferences = inferences;
         this.num_iter = num_iter;
         this.backtrackCount = 0;
-        this.maxBacktracks = 1000; //TODO : we are not handling backtracking for now, otherwise set to 1000
+        this.maxBacktracks = 1000;
         this.cg_lambda = lambda;
         this.min_ll_change = min_ll_change;
         this.cg_max_lambda = max_lambda;
@@ -52,10 +56,9 @@ public class DiscLearner {
         Arrays.fill(priorStdDevs, 2);
     }
 
-    public void learnWeights()
+    public double[] learnWeights()
     {
         findFormulaTrainCnts();
-        int numWeights = inferences.get(0).mln.formulas.size();
         if(withEM)
         {
             // TODO : implement for EM
@@ -65,6 +68,7 @@ public class DiscLearner {
             inferences.get(i).saveAllCounts(true);
         }
         long time = System.currentTimeMillis();
+        boolean burningIn = true, isInit = true;
         for(int iter = 1 ; iter <= num_iter ; iter++)
         {
             if(iter%1 == 0) {
@@ -76,7 +80,13 @@ public class DiscLearner {
                 //TODO: fillinmissingvalues
             }
             System.out.println("Running inference...");
-            infer();
+            if(backtracked) {
+                burningIn = true;
+                isInit = true;
+            }
+            infer(burningIn, isInit);
+            burningIn = false;
+            isInit = false;
             System.out.println("Done Inference");
             System.out.println("Getting gradient...");
             findGradient();
@@ -92,6 +102,7 @@ public class DiscLearner {
         }
         System.out.println("Learning done...");
         System.out.println("Final weights : " + Arrays.toString(weights));
+        return weights;
     }
 
     private int updateWtsByCG(int iter)
@@ -366,17 +377,20 @@ public class DiscLearner {
         double []formulaInferredCnts = inferences.get(domainIndex).numFormulaTrueCnts;
         for (int j = 0; j < formulaInferredCnts.length; j++) {
             double inferredCount = formulaInferredCnts[j]/inferences.get(domainIndex).numIter;
+            if(dldebug)
             gradient[j] -= (formulaTrainCnts[domainIndex][j] - inferredCount);
         }
     }
 
-    private void infer()
+    private void infer(boolean burningIn, boolean isInit)
     {
         MLN mln = inferences.get(0).mln;
         for (int i = 0; i < domain_cnt; i++) {
             State state = inferences.get(i).state;
             state.setGroundFormulaWtsToParentWts(mln);
-            inferences.get(i).infer();
+            inferences.get(i).updateWtsForNextGndPred(0);
+            System.out.println("Doing inference for domain " + i);
+            inferences.get(i).infer(burningIn, isInit);
         }
     }
 
@@ -387,6 +401,18 @@ public class DiscLearner {
         for (int i = 0; i < numFormulas ; i++)
         {
             mln.formulas.get(i).weight = new LogDouble(weights[i], true);
+        }
+    }
+
+    public void writeWeights(String out_file, double []weights) {
+
+        try (PrintWriter writer = new PrintWriter(out_file)) {
+            for(double w : weights)
+            {
+                writer.println(w);
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
         }
     }
 }

@@ -203,7 +203,7 @@ public class FullyGrindingMill {
                 {
                     GroundPredicate gp = groundMln.groundPredicates.get(gpIndex);
                     BitSet b = gc.grounPredBitSet.get(gc.globalToLocalPredIndex.get(gpIndex));
-                    // If this gp is not evidence, then add it
+                    // If this gp is not evidence and if it is open world, then add it
                     if(!evidence.predIdVal.containsKey(gpIndex) && gp.symbol.world == PredicateSymbol.WorldState.open)
                     {
                         GroundPredicate newGp = new GroundPredicate();

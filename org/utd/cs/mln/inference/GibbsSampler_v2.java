@@ -16,10 +16,10 @@ public class GibbsSampler_v2 {
     public State state;
     public List<List<Integer>> countNumAssignments = new ArrayList<>(); // For each groundPred in state.mln.groundPreds, stores how many times this groundpred gets assigned to a  particular value. Used for calculating marginal prob
     public List<List<Double>> marginals = new ArrayList<>();
-    public List<List<Double>> allFormulaTrueCnts = new ArrayList<>(); // allFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample
-    public List<List<Double>> oldAllFormulaTrueCnts = new ArrayList<>(); // oldAllFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample in the previous iter of learning
-    public double[] numFormulaTrueCnts, numFormulaTrueSqCnts; // average of true counts of formulas over all samples.
-    boolean trackFormulaCounts = false, saveAllCounts = false;
+    public double[][] allFormulaTrueCnts; // allFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample
+    public double[][] oldAllFormulaTrueCnts; // oldAllFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample in the previous iter of learning
+    public double[] numFormulaTrueCnts, numFormulaTrueSqCnts; // sum of true counts of formulas over all samples.
+    boolean trackFormulaCounts = false, saveAllCounts = false, gsdebug=false, calculate_marginal=false;
 
     public int numBurnSteps, numIter;
 
@@ -50,10 +50,13 @@ public class GibbsSampler_v2 {
 
         numFormulaTrueCnts = new double[mln.formulas.size()];
         numFormulaTrueSqCnts = new double[mln.formulas.size()];
+        allFormulaTrueCnts = new double[numIter][mln.formulas.size()];
     }
 
     private void init()
     {
+        if(gsdebug)
+            System.out.println("Inference initialization");
         doInitialRandomAssignment();
         initializeNumSatValues(); // Initialize numFalseClauseIds and numSatLiterals in the clauses
         ArrayList<Integer> allGndPredIndices = new ArrayList<>();
@@ -116,76 +119,76 @@ public class GibbsSampler_v2 {
         }// end of formula
     }
 
-    public void infer()
+    public void infer(boolean burningIn, boolean isInit)
     {
-        init();
+        if(isInit)
+            init();
 
         int numGndPreds = state.groundMLN.groundPredicates.size();
-        // Burning in
 
-        System.out.println("Burning in started...");
-        long time = System.currentTimeMillis();
-
-        for(int i =1 ; i <= numBurnSteps; i++)
+        if(burningIn)
         {
-            for(int gpId =0; gpId < numGndPreds; gpId++){
-                performGibbsStep(gpId, (gpId+1)%numGndPreds);
+            // Burning in
+
+            System.out.println("Burning in started...");
+            long time = System.currentTimeMillis();
+
+            for(int i =1 ; i <= numBurnSteps; i++)
+            {
+                for(int gpId =0; gpId < numGndPreds; gpId++){
+                    performGibbsStep(gpId, (gpId+1)%numGndPreds);
+                }
+                if(i%100 == 0) {
+                    System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
+                }
             }
-            if(i%100 == 0) {
-                System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
-            }
+
+            System.out.println("Burning completed in : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
+
         }
 
-        System.out.println("Burning completed in : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
-
         System.out.println("Gibbs sampling started...");
-        time = System.currentTimeMillis();
-        allFormulaTrueCnts = new ArrayList<>();
+        long time = System.currentTimeMillis();
         for(int i =1 ; i <= numIter; i++)
         {
             for(int gpId =0; gpId < numGndPreds; gpId++){
                 int assignment = performGibbsStep(gpId, (gpId+1)%numGndPreds);
-                countNumAssignments.get(gpId).set(assignment, countNumAssignments.get(gpId).get(assignment)+1);
+                if(calculate_marginal)
+                    countNumAssignments.get(gpId).set(assignment, countNumAssignments.get(gpId).get(assignment)+1);
             }
             if(trackFormulaCounts)
             {
                 int numWts = mln.formulas.size();
                 int []numTrueGndings = state.getNumTrueGndings(numWts);
-                ArrayList<Double> temp = new ArrayList<>();
                 for (int j = 0; j < numWts; j++) {
                     numFormulaTrueCnts[j] += numTrueGndings[j];
-                    temp.add((double) numTrueGndings[j]);
+                    allFormulaTrueCnts[i-1][j] += numTrueGndings[j]; //i-1 because iterations start from 1
                     numFormulaTrueSqCnts[j] += numTrueGndings[j]*numTrueGndings[j];
                 }
-
-                allFormulaTrueCnts.add(temp);
             }
             if(i%100 == 0) {
                 System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
             }
         }
-        // Happy Commented this code. We will calculate average in learning code, not here.
-        /*
-        for(int i = 0 ; i < numFormulaTrueCnts.length ; i++)
-        {
-            numFormulaTrueCnts[i]/=numIter;
-            numFormulaTrueSqCnts[i]/=numIter;
-        }*/
 
-        for(int i = 0 ; i < numGndPreds ; i++)
+        if(calculate_marginal)
         {
-            double sum = 0.0;
-            int numValues = countNumAssignments.get(i).size();
-            for(int j = 0 ; j < numValues ; j++)
+            for(int i = 0 ; i < numGndPreds ; i++)
             {
-                sum += countNumAssignments.get(i).get(j);
-            }
-            for(int j = 0 ; j < numValues ; j++)
-            {
-                double marg = countNumAssignments.get(i).get(j)/sum;
-                marginals.get(i).set(j,marg);
+                double sum = 0.0;
+                int numValues = countNumAssignments.get(i).size();
+                for(int j = 0 ; j < numValues ; j++)
+                {
+                    sum += countNumAssignments.get(i).get(j);
+                }
+                for(int j = 0 ; j < numValues ; j++)
+                {
+                    double marg = countNumAssignments.get(i).get(j)/sum;
+                    marginals.get(i).set(j,marg);
+                }
             }
         }
+
         System.out.println("Gibbs Sampling completed in : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
     }
 
@@ -197,7 +200,7 @@ public class GibbsSampler_v2 {
             for(int j = 0 ; j < marginals.get(i).size() ; j++)
             {
                 double marginal = marginals.get(i).get(j);
-                writer.println(state.groundMLN.groundPredicates.get(i) + " = " + j + " " + marginal);
+                writer.println(state.groundMLN.groundPredicates.get(i) + "=" + j + " " + marginal);
             }
         }
 
@@ -207,19 +210,51 @@ public class GibbsSampler_v2 {
         int assignment = get_probabilistic_assignment(state.wtsPerPredPerVal.get(gpId));
         int prev_assignment = state.truthVals.get(gpId);
         state.truthVals.set(gpId, assignment);
-        List<Integer> affectedGndPredIndices = new ArrayList<>();
+        //List<Integer> affectedGndPredIndices = new ArrayList<>();
         if(assignment != prev_assignment)
         {
              // Markov Blanket for current flipped atom. When flipping an atom, if the value changes then we need to update satWeights for all these M.B predicates.
-            findMarkovBlanket(gpId, assignment, prev_assignment, affectedGndPredIndices);
+            //findMarkovBlanket(gpId, assignment, prev_assignment, affectedGndPredIndices);
+            updateSatCounts(gpId, assignment, prev_assignment);
             //updateWtsForGndPreds(affectedGndPredIndices);
         }
 
-        affectedGndPredIndices.clear();
-        affectedGndPredIndices.add(nextGpId);
-        updateWtsForGndPreds(affectedGndPredIndices);
+//        affectedGndPredIndices.clear();
+//        affectedGndPredIndices.add(nextGpId);
+//        updateWtsForGndPreds(affectedGndPredIndices);
+        updateWtsForNextGndPred(nextGpId);
 
         return assignment;
+    }
+
+
+    private void updateSatCounts(int gpId, int assignment, int prev_assignment) {
+        GroundPredicate gp = state.groundMLN.groundPredicates.get(gpId);
+        for(int formulaId : gp.groundFormulaIds.keySet())
+        {
+            for(int cid : gp.groundFormulaIds.get(formulaId))
+            {
+                GroundClause gc = state.groundMLN.groundFormulas.get(formulaId).groundClauses.get(cid);
+                int localPredindex = gc.globalToLocalPredIndex.get(gpId);
+                BitSet b = gc.grounPredBitSet.get(localPredindex);
+                int cur_val = b.get(assignment) ? 1 : 0;
+                int prev_val = b.get(prev_assignment) ? 1 : 0;
+                int satDifference = cur_val - prev_val; // numsatLiterals according to new assignment - old assignment
+                int curSatLiterals = state.numTrueLiterals.get(formulaId).get(cid);
+                curSatLiterals += satDifference;
+                state.numTrueLiterals.get(formulaId).set(cid, curSatLiterals);
+
+                if(curSatLiterals > 0)
+                {
+                    state.falseClausesSet.get(formulaId).remove(cid);
+                }
+                else
+                {
+                    state.falseClausesSet.get(formulaId).add(cid);
+                }
+            }
+
+        }
     }
 
     private void findMarkovBlanket(int gpId, int assignment, int prev_assignment, List<Integer> markov_blanket) {
@@ -264,7 +299,76 @@ public class GibbsSampler_v2 {
 //        markov_blanket.addAll(mbSet);
     }
 
-    private void updateWtsForGndPreds(List<Integer> affectedGndPredIndices) {
+    public void updateWtsForNextGndPred(int i) {
+
+        List<GroundPredicate> groundPredicates = state.groundMLN.groundPredicates;
+        GroundPredicate gp = groundPredicates.get(i);
+        int numPossibleVals =gp.numPossibleValues;
+        double wtsPerVal[] = new double[numPossibleVals];
+        Map<Integer, Set<Integer>> formulaIds = gp.groundFormulaIds;
+
+        for(Integer formulaId : formulaIds.keySet())
+        {
+            GroundFormula gf = state.groundMLN.groundFormulas.get(formulaId);
+            double wt = gf.weight.getValue();
+            Set<Integer> tempSet = new HashSet<Integer>();
+            tempSet.addAll(state.falseClausesSet.get(formulaId));
+            tempSet.removeAll(formulaIds.get(formulaId));
+            BitSet formulaBitSet = new BitSet(numPossibleVals);
+            formulaBitSet.flip(0,numPossibleVals);
+
+            // If there is a clause which is false, and not doesn't contain gp, then this formula is always false
+            if(tempSet.size() == 0)
+            {
+
+                for(Integer cid : formulaIds.get(formulaId))
+                {
+                    BitSet clauseBitSet = new BitSet(numPossibleVals);
+                    GroundClause gc = gf.groundClauses.get(cid);
+                    int localPredIndex = gc.globalToLocalPredIndex.get(i);
+                    int numSatLiterals = state.numTrueLiterals.get(formulaId).get(cid);
+                    if(numSatLiterals > 1)
+                        clauseBitSet.flip(0,numPossibleVals);
+                    else if(numSatLiterals == 1)
+                    {
+                        BitSet b = gc.grounPredBitSet.get(localPredIndex);
+                        if(b.get(state.truthVals.get(i)))
+                        {
+                            clauseBitSet = (BitSet) b.clone();
+                        }
+                        else
+                        {
+                            clauseBitSet.flip(0,numPossibleVals);
+                        }
+                    }
+                    else {
+                        BitSet b = gc.grounPredBitSet.get(localPredIndex);
+                        clauseBitSet = (BitSet) b.clone();
+                    }
+                    formulaBitSet.and(clauseBitSet);
+                }// end clauses loop
+
+                int startIndex = 0;
+                while(startIndex < numPossibleVals)
+                {
+                    int index = formulaBitSet.nextSetBit(startIndex);
+                    if(index == -1)
+                        break;
+                    wtsPerVal[index] += wt;
+                    startIndex = index+1;
+                }
+            }// end if condition
+
+        } //end formulas loops
+
+        List<Double> tempWts = new ArrayList<>();
+        for(double d : wtsPerVal)
+        {
+            tempWts.add(d);
+        }
+        state.wtsPerPredPerVal.set(i, tempWts);
+    }
+    public void updateWtsForGndPreds(List<Integer> affectedGndPredIndices) {
         List<GroundPredicate> groundPredicates = state.groundMLN.groundPredicates;
         for(Integer i : affectedGndPredIndices)
         {
@@ -392,19 +496,19 @@ public class GibbsSampler_v2 {
         // so we can compute expectations
         for (int s = 0; s < numSamples; s++)
         {
-            List<Double> n = allFormulaTrueCnts.get(s);
+            double[] n = allFormulaTrueCnts[s];
 
             // Compute v * n
             double vn = 0;
             for (int i = 0; i < numFormulas; i++)
-                vn += v[i] * n.get(i);
+                vn += v[i] * n[i];
 
             // Tally v*n, n_i, and n_i v*n
             sumVN += vn;
             for (int i = 0; i < numFormulas; i++)
             {
-                sumN[i]    += n.get(i);
-                sumNiVN[i] += n.get(i) * vn;
+                sumN[i]    += n[i];
+                sumNiVN[i] += n[i] * vn;
             }
         }
 
@@ -424,7 +528,7 @@ public class GibbsSampler_v2 {
     public void resetCnts() {
         Arrays.fill(numFormulaTrueCnts,0.0);
         Arrays.fill(numFormulaTrueSqCnts,0.0);
-        allFormulaTrueCnts = new ArrayList<>();
+        allFormulaTrueCnts = new double[numIter][mln.formulas.size()];
     }
 
     public void saveAllCounts(boolean saveCounts) {
@@ -432,8 +536,8 @@ public class GibbsSampler_v2 {
             return;
 
         saveAllCounts = saveCounts;
-        allFormulaTrueCnts = new ArrayList<>();
-        oldAllFormulaTrueCnts = new ArrayList<>();
+        allFormulaTrueCnts = new double[numIter][mln.formulas.size()];
+        oldAllFormulaTrueCnts = new double[numIter][mln.formulas.size()];
     }
 
     public void restoreCnts() {
@@ -441,42 +545,31 @@ public class GibbsSampler_v2 {
             return;
 
         resetCnts();
+        System.out.println("Restoring counts...");
+        for (int i = 0; i < oldAllFormulaTrueCnts.length; i++)
+        {
+            int numcounts = oldAllFormulaTrueCnts[i].length;
+            for (int j = 0; j < numcounts; j++)
+            {
+                allFormulaTrueCnts[i][j] = oldAllFormulaTrueCnts[i][j];
+                double currCount = allFormulaTrueCnts[i][j];
+                numFormulaTrueCnts[j] += currCount;
+                numFormulaTrueSqCnts[j] += currCount*currCount;
+            }
 
-        for (int i = 0; i < oldAllFormulaTrueCnts.size(); i++)
-        {
-            int numcounts = oldAllFormulaTrueCnts.get(i).size();
-            List<Double> temp = new ArrayList<>();
-            for (int j = 0; j < numcounts; j++)
-            {
-                temp.add(oldAllFormulaTrueCnts.get(i).get(j));
-            }
-            allFormulaTrueCnts.add(temp);
-        }
-        for (int i = 0; i < allFormulaTrueCnts.size(); i++)
-        {
-            int numcounts = allFormulaTrueCnts.get(i).size();
-            for (int j = 0; j < numcounts; j++)
-            {
-                double currcount = allFormulaTrueCnts.get(i).get(j);
-                numFormulaTrueCnts[j]   += currcount;
-                numFormulaTrueSqCnts[j] += currcount * currcount;
-            }
         }
     }
 
     public void saveCnts() {
         if (!saveAllCounts)
             return;
-        oldAllFormulaTrueCnts = new ArrayList<>();
-        for (int i = 0; i < allFormulaTrueCnts.size(); i++)
+        for (int i = 0; i < allFormulaTrueCnts.length; i++)
         {
-            int numcounts = allFormulaTrueCnts.get(i).size();
-            List<Double> temp = new ArrayList<>();
+            int numcounts = allFormulaTrueCnts[i].length;
             for (int j = 0; j < numcounts; j++)
             {
-                temp.add(allFormulaTrueCnts.get(i).get(j));
+                oldAllFormulaTrueCnts[i][j] = allFormulaTrueCnts[i][j];
             }
-            oldAllFormulaTrueCnts.add(temp);
         }
     }
 }

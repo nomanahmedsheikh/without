@@ -17,19 +17,21 @@ import java.util.*;
  * Created by Happy on 2/28/17.
  */
 public class InferTest {
-    public static ArrayList<String> open_world = new ArrayList<>();
-    public static ArrayList<String> closed_world = new ArrayList<>();
-    public static ArrayList<String> hidden_world = new ArrayList<>();
+
     public static void main(String []args) throws FileNotFoundException, CloneNotSupportedException {
-        String filename = "/Users/Happy/phd/experiments/without/data/MultiValued_data/smokes_mln.txt";
-        String out_file = "/Users/Happy/phd/experiments/without/data/Imdb/imdb_results2.txt";
-        String evidence_file1 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
+        String filename = "/Users/Happy/phd/experiments/without/data/Imdb/imdb_mln.txt";
+        String out_file = "/Users/Happy/phd/experiments/without/data/Imdb/imdb_results.txt";
+        String evidence_file1 = "/Users/Happy/phd/experiments/without/data/Imdb/imdb.2_movie.actor.director.workedUnder_30.txt";
         String evidence_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
-        String train_file1 = "/Users/Happy/phd/experiments/without/data/smoke/evidence.txt";
+        String train_file1 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
         String train_file2 = "/Users/Happy/phd/experiments/without/data/Imdb/imdb.2_train.txt";
-        open_world.add("C");
-        open_world.add("S");
-        open_world.add("F");
+        Parser.open_world.add("actor");
+        Parser.open_world.add("director");
+        Parser.open_world.add("movie");
+        Parser.open_world.add("workedUnder");
+//        open_world.add("C");
+//        open_world.add("S");
+//        open_world.add("F");
         //closed_world.add("S");
         List<MLN> mlns = new ArrayList<>();
         List<GroundMLN> groundMlns = new ArrayList<>();
@@ -60,7 +62,7 @@ public class InferTest {
             System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time)/1000.0));
             System.out.println("Total number of ground formulas : " + groundMln.groundFormulas.size());
 
-            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, truth, 1000, 10000, false);
+            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, truth, 100, 1000, false);
             PrintWriter writer = null;
             try {
                 if(i == 0)
@@ -74,7 +76,7 @@ public class InferTest {
             }
             catch(IOException e) {
             }
-            gs.infer();
+            gs.infer(true,true);
             gs.writeMarginal(writer);
             writer.close();
         }
