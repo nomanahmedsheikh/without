@@ -5,8 +5,7 @@ import org.utd.cs.gm.utility.Timer;
 import org.utd.cs.mln.alchemy.core.*;
 import org.utd.cs.mln.inference.GibbsSampler_v2;
 
-import java.io.FileNotFoundException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.util.*;
 
 /**
@@ -363,6 +362,8 @@ public class DiscLearner {
         int numWeights = weights.length;
         Arrays.fill(gradient,0.0);
         for (int i = 0; i < domain_cnt ; i++) {
+            if(dldebug)
+                System.out.println("Finding gradient for domain " + i);
             getGradientForDomain(gradient, i);
         }
         for (int i = 0; i < numWeights; i++) {
@@ -375,9 +376,12 @@ public class DiscLearner {
     private void getGradientForDomain(double []gradient, int domainIndex)
     {
         double []formulaInferredCnts = inferences.get(domainIndex).numFormulaTrueCnts;
+        if(dldebug)
+            System.out.println("FormulaNum\tactual Count\tInferred Count");
         for (int j = 0; j < formulaInferredCnts.length; j++) {
             double inferredCount = formulaInferredCnts[j]/inferences.get(domainIndex).numIter;
             if(dldebug)
+                System.out.println(j + '\t' + formulaTrainCnts[domainIndex][j] + '\t' + inferredCount);
             gradient[j] -= (formulaTrainCnts[domainIndex][j] - inferredCount);
         }
     }
@@ -404,15 +408,35 @@ public class DiscLearner {
         }
     }
 
-    public void writeWeights(String out_file, double []weights) {
+    public void writeWeights(String mln_file, String out_file, double []weights) throws FileNotFoundException {
 
-        try (PrintWriter writer = new PrintWriter(out_file)) {
-            for(double w : weights)
-            {
-                writer.println(w);
+        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(mln_file))));
+        PrintWriter writer = new PrintWriter(out_file);
+        boolean formulaLine = false;
+        int formulaNum = 0;
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine().replaceAll("\\s", "");
+            if (line.isEmpty()) {
+                writer.println(line);
+                continue;
             }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            if (line.contains("#formulas")) {
+                formulaLine = true;
+                writer.println(line);
+                continue;
+            }
+            if(formulaLine == false)
+            {
+                writer.println(line);
+            }
+            else
+            {
+                String[] formulaArr = line.split("::");
+                writer.printf(formulaArr[0]+"::%.3f\n",weights[formulaNum]);
+                formulaNum++;
+            }
         }
+        writer.close();
+        scanner.close();
     }
 }

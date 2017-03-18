@@ -26,9 +26,9 @@ public class State {
         int numGroundFormulas = groundMLN.groundFormulas.size();
         for(int i = 0 ; i < numGroundFormulas ; i++)
         {
-            falseClausesSet.add(new HashSet<>());
+            falseClausesSet.add(new HashSet<Integer>());
             int numGroundClauses = groundMLN.groundFormulas.get(i).groundClauses.size();
-            numTrueLiterals.add(new ArrayList<>());
+            numTrueLiterals.add(new ArrayList<Integer>());
             for(int j = 0 ; j < numGroundClauses ; j++)
             {
                 numTrueLiterals.get(i).add(0);
