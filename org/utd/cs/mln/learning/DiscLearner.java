@@ -363,6 +363,8 @@ public class DiscLearner {
         int numWeights = weights.length;
         Arrays.fill(gradient,0.0);
         for (int i = 0; i < domain_cnt ; i++) {
+            if(dldebug)
+                System.out.println("Finding gradient for domain " + i);
             getGradientForDomain(gradient, i);
         }
         for (int i = 0; i < numWeights; i++) {
@@ -375,9 +377,12 @@ public class DiscLearner {
     private void getGradientForDomain(double []gradient, int domainIndex)
     {
         double []formulaInferredCnts = inferences.get(domainIndex).numFormulaTrueCnts;
+        if(dldebug)
+            System.out.println("FormulaNum\tactual Count\tInferred Count");
         for (int j = 0; j < formulaInferredCnts.length; j++) {
             double inferredCount = formulaInferredCnts[j]/inferences.get(domainIndex).numIter;
             if(dldebug)
+                System.out.println(j + '\t' + formulaTrainCnts[domainIndex][j] + '\t' + inferredCount);
             gradient[j] -= (formulaTrainCnts[domainIndex][j] - inferredCount);
         }
     }

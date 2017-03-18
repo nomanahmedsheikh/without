@@ -39,38 +39,42 @@ public class Parser {
     public Map<String, Set<Integer>> collectDomain(String evidFile, String truthFile) throws FileNotFoundException {
 
         Map<String, Set<Integer>> varTypeToDomain = new HashMap<>();
-        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(evidFile))));
-        Evidence evidence = new Evidence();
-        while (scanner.hasNextLine()) {
-            String line = scanner.nextLine().replaceAll("\\s", "");
+        if(evidFile != null)
+        {
+            Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(evidFile))));
+            Evidence evidence = new Evidence();
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine().replaceAll("\\s", "");
 
-            if (line.isEmpty()) {
-                continue;
-            }
-            String[] predArr = line.split(REGEX_ESCAPE_CHAR + LEFTPRNTH);
-            String symbolName = predArr[0];
-            String[] predArr2 = predArr[1].split(EQUALSTO);
-            String[] termNames = predArr2[0].replace(RIGHTPRNTH, "").split(COMMASEPARATOR);
-            for(PredicateSymbol symbol : mln.symbols)
-            {
-                if(symbol.symbol.equals((symbolName)))
-                {
-                    for(int i = 0 ; i < termNames.length ; i++)
-                    {
-                        String var_type = symbol.variable_types.get(i);
-                        if(!varTypeToDomain.containsKey(var_type))
-                        {
-                            varTypeToDomain.put(var_type, new HashSet<>());
-                        }
-                        varTypeToDomain.get(var_type).add(Integer.parseInt(termNames[i]));
-                    }
-                    break;
+                if (line.isEmpty()) {
+                    continue;
                 }
-            }
+                String[] predArr = line.split(REGEX_ESCAPE_CHAR + LEFTPRNTH);
+                String symbolName = predArr[0];
+                String[] predArr2 = predArr[1].split(EQUALSTO);
+                String[] termNames = predArr2[0].replace(RIGHTPRNTH, "").split(COMMASEPARATOR);
+                for(PredicateSymbol symbol : mln.symbols)
+                {
+                    if(symbol.symbol.equals((symbolName)))
+                    {
+                        for(int i = 0 ; i < termNames.length ; i++)
+                        {
+                            String var_type = symbol.variable_types.get(i);
+                            if(!varTypeToDomain.containsKey(var_type))
+                            {
+                                varTypeToDomain.put(var_type, new HashSet<>());
+                            }
+                            varTypeToDomain.get(var_type).add(Integer.parseInt(termNames[i]));
+                        }
+                        break;
+                    }
+                }
 
+            }
+            scanner.close();
         }
-        scanner.close();
-        scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(truthFile))));
+
+        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(truthFile))));
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine().replaceAll("\\s", "");
 
@@ -544,8 +548,10 @@ public class Parser {
 	}
 
     public Evidence parseEvidence(GroundMLN groundMln, String evidence_file) throws FileNotFoundException {
-        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(evidence_file))));
         Evidence evidence = new Evidence();
+        if(evidence_file == null)
+            return evidence;
+        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(evidence_file))));
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine().replaceAll("\\s", "");
 

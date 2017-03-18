@@ -19,12 +19,15 @@ import java.util.*;
 public class InferTest {
 
     public static void main(String []args) throws FileNotFoundException, CloneNotSupportedException {
-        String filename = "/Users/Happy/phd/experiments/without/data/Imdb/imdb_mln.txt";
-        String out_file = "/Users/Happy/phd/experiments/without/data/Imdb/imdb_results.txt";
-        String evidence_file1 = "/Users/Happy/phd/experiments/without/data/Imdb/imdb.2_movie.actor.director.workedUnder_30.txt";
-        String evidence_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
+        String filename = "/Users/Happy/phd/experiments/without/data/Imdb/mln/imdb_mln.txt";
+        String out_file = "/Users/Happy/phd/experiments/without/data/Imdb/results/imdb_results.txt";
+        String evidence_file1 = "/Users/Happy/phd/experiments/without/data/Imdb/db/imdb.5_movie.actor.director.workedUnder_30.txt";
+        //String evidence_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
         String train_file1 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
-        String train_file2 = "/Users/Happy/phd/experiments/without/data/Imdb/imdb.2_train.txt";
+        //String train_file2 = "/Users/Happy/phd/experiments/without/data/Imdb/imdb.2_train.txt";
+        //List<String> evidence_preds = Arrays.asList(args[4].split(","));
+        List<String> evidence_preds = Arrays.asList("actor,director,movie,workedUnder".split(","));
+        List<String> query_preds = Arrays.asList("actor,director,movie,workedUnder".split(","));
         Parser.open_world.add("actor");
         Parser.open_world.add("director");
         Parser.open_world.add("movie");
@@ -56,13 +59,14 @@ public class InferTest {
             long time = System.currentTimeMillis();
             GroundMLN groundMln = fgm.ground(mln);
             Evidence evidence = parser.parseEvidence(groundMln, evidFiles.get(i));
-            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence);
             Evidence truth = parser.parseEvidence(groundMln,trainFiles.get(i));
+            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidence_preds, query_preds);
+
             groundMlns.add(newGroundMln);
             System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time)/1000.0));
             System.out.println("Total number of ground formulas : " + groundMln.groundFormulas.size());
 
-            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, truth, 100, 1000, false);
+            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, truth, 100, 1000, false, true);
             PrintWriter writer = null;
             try {
                 if(i == 0)

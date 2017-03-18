@@ -19,11 +19,11 @@ public class GibbsSampler_v2 {
     public double[][] allFormulaTrueCnts; // allFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample
     public double[][] oldAllFormulaTrueCnts; // oldAllFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample in the previous iter of learning
     public double[] numFormulaTrueCnts, numFormulaTrueSqCnts; // sum of true counts of formulas over all samples.
-    boolean trackFormulaCounts = false, saveAllCounts = false, gsdebug=false, calculate_marginal=false;
+    boolean trackFormulaCounts = false, saveAllCounts = false, gsdebug=false, calculate_marginal=true;
 
     public int numBurnSteps, numIter;
 
-    public GibbsSampler_v2(MLN mln, GroundMLN groundMLN, Evidence evidence, Evidence truth, int numBurnSteps, int numIter, boolean trackFormulaCounts)
+    public GibbsSampler_v2(MLN mln, GroundMLN groundMLN, Evidence evidence, Evidence truth, int numBurnSteps, int numIter, boolean trackFormulaCounts, boolean calculate_marginal)
     {
         this.mln = mln;
         this.evidence = evidence;
@@ -32,6 +32,7 @@ public class GibbsSampler_v2 {
         this.numBurnSteps = numBurnSteps;
         this.numIter = numIter;
         this.trackFormulaCounts = trackFormulaCounts;
+        this.calculate_marginal = calculate_marginal;
         int numGroundPreds = groundMLN.groundPredicates.size();
 
         // Intialize all counts of assignments to 0.

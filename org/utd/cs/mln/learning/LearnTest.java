@@ -13,10 +13,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Created by Happy on 3/11/17.
@@ -24,52 +21,253 @@ import java.util.Set;
 public class LearnTest {
 
     private static final String REGEX_ESCAPE_CHAR = "\\";
+    private static int numIter=100;
+    private static String mlnFile, outFile;
+    private static String []evidenceFiles, truthFiles;
+    private static boolean queryEvidence=false;
+    private static int numDb;
+    private static double minllChange = 1; // changed from 10^-5 to 1 so that numIter reduces
+    private static List<String> evidPreds, queryPreds = null, openWorldPreds, closedWorldPreds;
+
+    private enum ArgsState{
+        MlnFile,
+        EvidFiles,
+        TruthFiles,
+        OutFile,
+        OpenWorld,
+        ClosedWorld,
+        QueryEvidence,
+        NumIter,
+        EvidPreds, QueryPreds, Flag, NumSamples
+    }
     public static void main(String []args) throws FileNotFoundException, CloneNotSupportedException {
         long totaltime = System.currentTimeMillis();
-        String filename = args[0];
-        String evidence_files[] = args[1].split(",");
-        String train_files[] = args[2].split(",");
-        String out_file = args[3];
-        Parser.open_world.add("actor");
-        Parser.open_world.add("director");
-        Parser.open_world.add("movie");
-        Parser.open_world.add("workedUnder");
-//        open_world.add("C");
-//        open_world.add("S");
-//        open_world.add("F");
+        parseArgs(args);
+        //String filename = "/Users/Happy/phd/experiments/without/data/Imdb/mln/imdb_mln.txt";
+        //String evidence_files[] = "/Users/Happy/phd/experiments/without/data/Imdb/db/empty_file.txt".split(",");
+        //String train_files[] = "/Users/Happy/phd/experiments/without/data/Imdb/db/imdb.1_train.txt".split(",");
+        //String out_file = "/Users/Happy/phd/experiments/without/data/Imdb/results/imdb_results_out.txt";
+        //List<String> evidence_preds = Arrays.asList("".split(","));
+        //List<String> query_preds = Arrays.asList("actor,director,movie,workedUnder".split(","));;
+        Parser.open_world.addAll(openWorldPreds);
+        Parser.closed_world.addAll(closedWorldPreds);
+        FullyGrindingMill.queryEvidence = queryEvidence;
         List<MLN> mlns = new ArrayList<>();
         List<GroundMLN> groundMlns = new ArrayList<>();
 
         List<GibbsSampler_v2> inferences = new ArrayList<>();
-        int numDb = train_files.length;
         FullyGrindingMill fgm = new FullyGrindingMill();
         for(int i = 0 ; i < numDb ; i++)
         {
             MLN mln = new MLN();
             mlns.add(mln);
             Parser parser = new Parser(mln);
-            parser.parseInputMLNFile(filename);
+            parser.parseInputMLNFile(mlnFile);
             System.out.println("DB file "+(i+1));
-            Map<String, Set<Integer>> varTypeToDomain = parser.collectDomain(evidence_files[i], train_files[i]);
+            Map<String, Set<Integer>> varTypeToDomain = parser.collectDomain(evidenceFiles[i], truthFiles[i]);
             mln.overWriteDomain(varTypeToDomain);
             System.out.println("Creating MRF...");
             long time = System.currentTimeMillis();
             GroundMLN groundMln = fgm.ground(mln);
-            Evidence evidence = parser.parseEvidence(groundMln,evidence_files[i]);
-            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence);
-            Evidence truth = parser.parseEvidence(groundMln,train_files[i]);
+            Evidence evidence = parser.parseEvidence(groundMln,evidenceFiles[i]);
+            Evidence truth = parser.parseEvidence(groundMln,truthFiles[i]);
+            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidPreds, queryPreds);
             groundMlns.add(newGroundMln);
             System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time)/1000.0));
-            System.out.println("Total number of ground formulas : " + groundMln.groundFormulas.size());
+            System.out.println("Total number of ground formulas : " + newGroundMln.groundFormulas.size());
 
-            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, truth, 100, 200, true);
+            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, truth, 100, 200, true, false);
             inferences.add(gs);
         }
 
         // Start learning
-        DiscLearner dl = new DiscLearner(inferences, 50, 100.0, 0.00001, Double.MAX_VALUE, false, true);
+        DiscLearner dl = new DiscLearner(inferences, numIter, 100.0, minllChange, Double.MAX_VALUE, false, true);
         double [] weights = dl.learnWeights();
-        dl.writeWeights(out_file, weights);
+        dl.writeWeights(outFile, weights);
         System.out.println("Total Time taken : " + Timer.time((System.currentTimeMillis() - totaltime)/1000.0));
     }
+
+    private static void parseArgs(String[] args) {
+        ArgsState state = ArgsState.Flag;
+        if(args.length == 0)
+        {
+            System.out.println("No flags provided ");
+            System.out.println("Following are the allowed flags : ");
+            System.out.println(manual);
+            System.exit(0);
+        }
+        System.out.println("Learning parameters given : ");
+        for(String arg : args)
+        {
+            switch(state)
+            {
+                case MlnFile: // necessary
+                    mlnFile = arg;
+                    System.out.println("-i = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case EvidFiles: // if not given, will be empty file
+                    evidenceFiles = arg.split(",");
+                    System.out.println("-e = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case TruthFiles:  // necessary
+                    truthFiles = arg.split(",");
+                    System.out.println("-t = " + arg);
+                    state = ArgsState.Flag;
+                    numDb = truthFiles.length;
+                    continue;
+
+                case OutFile: // necessary
+                    outFile = arg;
+                    System.out.println("-o = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case EvidPreds: // If not given, will be an empty list
+                    evidPreds = Arrays.asList(arg.split(","));
+                    System.out.println("-ep = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case QueryPreds: // necessary
+                    queryPreds = Arrays.asList(arg.split(","));
+                    System.out.println("-qp = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case OpenWorld: // by default, all queryPreds are openworld
+                    openWorldPreds = Arrays.asList(arg.split(","));
+                    System.out.println("-ow = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case ClosedWorld: // by default, all evidence preds are closedworld
+                    closedWorldPreds = Arrays.asList(arg.split(","));
+                    System.out.println("-cw = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case QueryEvidence: // by default, it is false
+                    queryEvidence = true;
+                    System.out.println("-queryEvidence = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case NumIter: // by default, it is 100
+                    numIter = Integer.parseInt(arg);
+                    System.out.println("-NumIter = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case Flag:
+                    if(arg.equals("-i"))
+                    {
+                        state = ArgsState.MlnFile;
+                    }
+                    else if(arg.equals(("-e")))
+                    {
+                        state = ArgsState.EvidFiles;
+                    }
+                    else if(arg.equals(("-t")))
+                    {
+                        state = ArgsState.TruthFiles;
+                    }
+                    else if(arg.equals(("-o")))
+                    {
+                        state = ArgsState.OutFile;
+                    }
+                    else if(arg.equals(("-ep")))
+                    {
+                        state = ArgsState.EvidPreds;
+                    }
+                    else if(arg.equals(("-qp")))
+                    {
+                        state = ArgsState.QueryPreds;
+                    }
+                    else if(arg.equals(("-ow")))
+                    {
+                        state = ArgsState.OpenWorld;
+                    }
+                    else if(arg.equals(("-cw")))
+                    {
+                        state = ArgsState.ClosedWorld;
+                    }
+                    else if(arg.equals(("-queryEvidence")))
+                    {
+                        state = ArgsState.QueryEvidence;
+                    }
+                    else if(arg.equals(("-NumIter")))
+                    {
+                        state = ArgsState.NumIter;
+                    }
+                    else
+                    {
+                        System.out.println("Unknown flag " + arg);
+                        System.out.println("Following are the allowed flags : ");
+                        System.out.println(manual);
+                        System.exit(0);
+                    }
+
+            }
+        }
+        if(mlnFile == null)
+        {
+            System.out.println("Necessary to provide MLN file, exiting !!!");
+            System.exit(0);
+        }
+        if(truthFiles == null)
+        {
+            System.out.println("Necessary to provide at least one training file, exiting !!!");
+            System.exit(0);
+        }
+        if(outFile == null)
+        {
+            System.out.println("Necessary to provide output file, exiting !!!");
+            System.exit(0);
+        }
+        if(queryPreds == null)
+        {
+            System.out.println("Necessary to provide query predicates, exiting !!!");
+            System.exit(0);
+        }
+        if(evidenceFiles == null)
+        {
+            evidenceFiles = new String[numDb];
+            System.out.println("-e = " + Arrays.asList(evidenceFiles));
+        }
+        if(evidPreds == null)
+        {
+            evidPreds = new ArrayList<>();
+            System.out.println("-ep = " + evidPreds);
+        }
+        if(openWorldPreds == null)
+        {
+            openWorldPreds = new ArrayList<>();
+            openWorldPreds.addAll(queryPreds);
+            System.out.println("-ow = " + openWorldPreds);
+        }
+        if(closedWorldPreds == null)
+        {
+            closedWorldPreds = new ArrayList<>();
+            closedWorldPreds.addAll(evidPreds);
+            System.out.println("-cw = " + closedWorldPreds);
+        }
+
+    }
+
+    private static String manual = "-i\t(necessary) Input mln file\n" +
+            "-e\t(optional) Evidence file\n" +
+            "-t\t(Necessary) Comma separated training files\n" +
+            "-o\t(Necessary) output file\n" +
+            "-ep\t(Optional) Comma separated evidence predicates\n" +
+            "-qp\t(Necessary) Comma separated query Predicates\n" +
+            "-ow\t(Optional) Comma separated open world predicates, by default all query preds are open world\n" +
+            "-cw\t(Optional) Comma separated closed world predicates, by default all evidence preds are closed world\n" +
+            "-NumIter\t(Optional, default 100) number of learning iterations\n" +
+            "-queryEvidence\t(Optional, default false) If specified, then groundings of query predicates not present in " +
+            "training file are taken to be false evidence\n";
+
 }
