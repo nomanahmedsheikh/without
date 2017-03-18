@@ -13,11 +13,12 @@ public class FullyGrindingMill {
     public static boolean queryEvidence = false;
     private GroundMLN groundMln;
     private List<GroundPredicate> groundPredicatesList;
-    private Map<GroundPredicate, Integer> groundPredicateToIndexMap = new HashMap<GroundPredicate,Integer>(); // we need this map because while adding new groundpredicate into global list, we check if it already exists, and that takes lot of time.
+    private Map<GroundPredicate, Integer> groundPredicateToIndexMap; // we need this map because while adding new groundpredicate into global list, we check if it already exists, and that takes lot of time.
 
     private void init() {
         groundMln = new GroundMLN();
         groundPredicatesList = new ArrayList<>();
+        groundPredicateToIndexMap = new HashMap<GroundPredicate,Integer>();
     }
 
     public GroundMLN ground(MLN mln) {
@@ -33,9 +34,7 @@ public class FullyGrindingMill {
                     }
                 }
             }
-            System.out.println("Grounding formula = " + formula);
             ground(formula, new ArrayList<Term>(formulaWiseTermToGround));
-            System.out.println("Grounded formula = " + formula);
         }
 
         groundMln.groundPredicates.addAll(groundPredicatesList);
@@ -52,8 +51,8 @@ public class FullyGrindingMill {
         System.out.println("permutations.length = " + permutations.length);
         for(int i = 0 ; i < permutations.length ; i++)
         {
-            if(i%100000==0)
-                System.out.println("i = " + i);
+//            if(i%100000==0)
+//                System.out.println("i = " + i);
             GroundFormula newFormula = new GroundFormula();
             int currentFormulaId = groundMln.groundFormulas.size();
             newFormula.formulaId = currentFormulaId;
