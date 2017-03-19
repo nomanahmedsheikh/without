@@ -318,7 +318,7 @@ public class GibbsSampler_v2 {
             BitSet formulaBitSet = new BitSet(numPossibleVals);
             formulaBitSet.flip(0,numPossibleVals);
 
-            // If there is a clause which is false, and not doesn't contain gp, then this formula is always false
+            // If there is a clause which is false, and doesn't contain gp, then this formula is always false
             if(tempSet.size() == 0)
             {
 
@@ -326,6 +326,10 @@ public class GibbsSampler_v2 {
                 {
                     BitSet clauseBitSet = new BitSet(numPossibleVals);
                     GroundClause gc = gf.groundClauses.get(cid);
+                    if(!gc.globalToLocalPredIndex.containsKey(i))
+                    {
+                        System.out.println("problem....");
+                    }
                     int localPredIndex = gc.globalToLocalPredIndex.get(i);
                     int numSatLiterals = state.numTrueLiterals.get(formulaId).get(cid);
                     if(numSatLiterals > 1)

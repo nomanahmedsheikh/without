@@ -79,6 +79,7 @@ public class LearnTest {
             System.out.println("Creating MRF...");
             long time = System.currentTimeMillis();
             GroundMLN groundMln = fgm.ground(mln);
+            System.out.println("Total number of ground formulas before handling evidence : " + groundMln.groundFormulas.size());
             Evidence evidence = parser.parseEvidence(groundMln,evidenceFiles[i]);
             Evidence truth = parser.parseEvidence(groundMln,truthFiles[i]);
             GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidPreds, queryPreds, hiddenPreds, false);

@@ -321,6 +321,18 @@ public class FullyGrindingMill {
                 newGroundFormula.groundClauses.addAll(newGcList);
                 newGroundMln.groundFormulas.add(newGroundFormula);
             }
+            else
+            {
+                // remove formulaIds from gp's formulaIdList
+                for(GroundClause gc : newGcList)
+                {
+                    for(Integer gpId : gc.groundPredIndices)
+                    {
+                        GroundPredicate gp = newGpList.get(gpId);
+                        gp.groundFormulaIds.remove(currentFormulaId);
+                    }
+                }
+            }
 
         }
         newGroundMln.groundPredicates.addAll(newGpList);
