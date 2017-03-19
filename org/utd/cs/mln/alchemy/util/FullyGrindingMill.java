@@ -43,6 +43,7 @@ public class FullyGrindingMill {
         }
 
         groundMln.groundPredicates.addAll(groundPredicatesList);
+        int numPreds = groundPredicateToIndexMap.size();
         for(PredicateSymbol symbol : mln.symbols)
         {
             groundMln.symbols.add(new GroundPredicateSymbol(symbol.id, symbol.symbol, symbol.values, symbol.world));
@@ -52,9 +53,11 @@ public class FullyGrindingMill {
 
     private void ground(Formula formula, ArrayList<Term> terms) {
         int[][] permutations = permute(terms);
-
+        System.out.println("permutations.length = " + permutations.length);
         for(int i = 0 ; i < permutations.length ; i++)
         {
+//            if(i%100000==0)
+//                System.out.println("i = " + i);
             GroundFormula newFormula = new GroundFormula();
             int currentFormulaId = groundMln.groundFormulas.size();
             newFormula.formulaId = currentFormulaId;
@@ -91,14 +94,24 @@ public class FullyGrindingMill {
                     // Check if this groundPredicate already exists, if it does not, then add it to groundPredicate List.
                     // Note that it may happen that this clause gets removed later due to preprocessing, but still,
                     // we need this groundPredicate, so there is no harm in adding it to groundPredicate List.
-                    int gpIndex = groundPredicatesList.indexOf(gp);
-                    if(gpIndex == -1) {
+
+                    if(!groundPredicateToIndexMap.containsKey(gp))
+                    {
+                        groundPredicateToIndexMap.put(gp, groundPredicateToIndexMap.size());
                         groundPredicatesList.add(gp);
                         int numPossibleValues = oldAtom.symbol.values.values.size();
                         gp.numPossibleValues = numPossibleValues;
-                        gpIndex = groundPredicatesList.size()-1;
                     }
+                    int gpIndex = groundPredicateToIndexMap.get(gp);
                     gp = groundPredicatesList.get(gpIndex);
+//                    int gpIndex = groundPredicatesList.indexOf(gp);
+//                    if(gpIndex == -1) {
+//                        groundPredicatesList.add(gp);
+//                        int numPossibleValues = oldAtom.symbol.values.values.size();
+//                        gp.numPossibleValues = numPossibleValues;
+//                        gpIndex = groundPredicatesList.size()-1;
+//                    }
+//                    gp = groundPredicatesList.get(gpIndex);
 
 //                    int gpIndex = 0;
 //                    if(!groundPredicateToIndexMap.containsKey(gp)) {
@@ -157,7 +170,8 @@ public class FullyGrindingMill {
                     for(GroundPredicate gp : newGroundPreds)
                     {
                         int gpIndex = groundPredicatesList.indexOf(gp);
-//                        int gpIndex = groundPredicateToIndexMap.get(gp);
+//                      int gpIndex = groundPredicateToIndexMap.get(gp);
+
                         newFormula.groundPredIndices.add(gpIndex);
                         if(!gp.groundFormulaIds.containsKey(currentFormulaId))
                         {

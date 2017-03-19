@@ -100,6 +100,7 @@ public class LearnTest {
 
         // Start learning
         DiscLearner dl = new DiscLearner(inferences, inferencesEM, numIter, 100.0, minllChange, Double.MAX_VALUE, withEM, true, usePrior);
+
         double [] weights = dl.learnWeights();
         dl.writeWeights(mlnFile, outFile, weights);
         System.out.println("Total Time taken : " + Timer.time((System.currentTimeMillis() - totaltime)/1000.0));
@@ -182,6 +183,7 @@ public class LearnTest {
 
                 case NumSamples: // by default, it is 100
                     numSamples = Integer.parseInt(arg);
+
                     state = ArgsState.Flag;
                     continue;
 
@@ -214,6 +216,7 @@ public class LearnTest {
                     {
                         state = ArgsState.HiddenPreds;
                     }
+
                     else if(arg.equals(("-ow")))
                     {
                         state = ArgsState.OpenWorld;
@@ -242,6 +245,7 @@ public class LearnTest {
                     {
                         withEM = true;
                     }
+
                     else
                     {
                         System.out.println("Unknown flag " + arg);
@@ -287,6 +291,7 @@ public class LearnTest {
             hiddenPreds = new ArrayList<>();
             System.out.println("-hp = " + hiddenPreds);
         }
+
         if(openWorldPreds == null)
         {
             openWorldPreds = new ArrayList<>();

@@ -495,7 +495,6 @@ public class DiscLearner {
                 System.out.println("FormulaNum\tactual Count\tInferred Count");
 
         }
-
         for (int j = 0; j < formulaInferredCnts.length; j++) {
             double inferredCount = formulaInferredCnts[j]/inferences.get(domainIndex).numIter;
             double inferredCountEM = 0;

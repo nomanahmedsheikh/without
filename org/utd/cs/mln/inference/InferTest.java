@@ -18,76 +18,200 @@ import java.util.*;
  */
 public class InferTest {
 
-    public static void main(String []args) throws FileNotFoundException, CloneNotSupportedException {
-        String filename = "/Users/Happy/IdeaProjects/Without_7/data/imdb/mln/imdb_subtyped_out_mln.1.txt";
-        String out_file = "/Users/Happy/IdeaProjects/Without_7/data/imdb/results/imdb_results_st.1.txt";
-        String evidence_file1 = "/Users/Happy/IdeaProjects/Without_7/data/imdb/db/imdb.2_movie.actor.director.workedUnder_30.txt";
-        //String evidence_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
-        String train_file1 = "/Users/Happy/IdeaProjects/Without_7/data/imdb/db/empty_file.txt";
-        //String train_file2 = "/Users/Happy/phd/experiments/without/data/Imdb/imdb.2_train.txt";
-        //List<String> evidence_preds = Arrays.asList(args[4].split(","));
-        List<String> evidence_preds = Arrays.asList("actor,director,movie,workedUnder".split(","));
-        List<String> query_preds = Arrays.asList("actor,director,movie,workedUnder,st".split(","));
-        Parser.open_world.add("actor");
-        Parser.open_world.add("director");
-        Parser.open_world.add("movie");
-        Parser.open_world.add("workedUnder");
-        Parser.open_world.add("st");
-//        open_world.add("C");
-//        open_world.add("S");
-//        open_world.add("F");
-        //closed_world.add("S");
-        List<MLN> mlns = new ArrayList<>();
-        List<GroundMLN> groundMlns = new ArrayList<>();
-        List<String> evidFiles = new ArrayList<>();
-        List<String> trainFiles = new ArrayList<>();
-        List<GibbsSampler_v2> inferences = new ArrayList<>();
-        evidFiles.add(evidence_file1);
-        //evidFiles.add(evidence_file2);
-        trainFiles.add(train_file1);
-        //trainFiles.add(train_file2);
-        int numDb = trainFiles.size();
+    private static String mlnFile, outFile, evidenceFile, goldFile;
+    private static boolean queryEvidence=false, trackFormulaCounts = false, calculateMarginal = true;
+    private static int NumBurnIn = 100, NumSamples = 200;
+    private static List<String> evidPreds, queryPreds = null, openWorldPreds, closedWorldPreds;
+
+    private enum ArgsState {
+        MlnFile,
+        EvidFile,
+        GoldFile,
+        OutFile,
+        OpenWorld,
+        ClosedWorld,
+        EvidPreds, QueryPreds, Flag, NumSamples
+    }
+
+    public static void main(String[] args) throws FileNotFoundException, CloneNotSupportedException {
+        parseArgs(args);
+        Parser.open_world.addAll(openWorldPreds);
+        Parser.closed_world.addAll(closedWorldPreds);
+        FullyGrindingMill.queryEvidence = queryEvidence;
         FullyGrindingMill fgm = new FullyGrindingMill();
-        for(int i = 0 ; i < numDb ; i++)
-        {
-            MLN mln = new MLN();
-            mlns.add(mln);
-            Parser parser = new Parser(mln);
-            parser.parseInputMLNFile(filename);
-            String files[] = new String[2];
-            files[0] = evidFiles.get(i);
-            files[1] = trainFiles.get(i);
-            Map<String, Set<Integer>> varTypeToDomain = parser.collectDomain(files);
-            mln.overWriteDomain(varTypeToDomain);
-            System.out.println("Creating MRF...");
-            long time = System.currentTimeMillis();
-            GroundMLN groundMln = fgm.ground(mln);
-            Evidence evidence = parser.parseEvidence(groundMln, evidFiles.get(i));
-            Evidence truth = parser.parseEvidence(groundMln,trainFiles.get(i));
-            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidence_preds, query_preds, null, false);
+        MLN mln = new MLN();
+        Parser parser = new Parser(mln);
+        parser.parseInputMLNFile(mlnFile);
+        String files[] = new String[2];
+        files[0] = evidenceFile;
+        files[1] = goldFile;
+        Map<String, Set<Integer>> varTypeToDomain = parser.collectDomain(files);
+        mln.overWriteDomain(varTypeToDomain);
+        System.out.println("Creating MRF...");
+        long time = System.currentTimeMillis();
+        GroundMLN groundMln = fgm.ground(mln);
+        Evidence evidence = parser.parseEvidence(groundMln, evidenceFile);
+        Evidence gold = parser.parseEvidence(groundMln, goldFile);
+        GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, gold, evidPreds, queryPreds, null, false);
 
-            groundMlns.add(newGroundMln);
-            System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time)/1000.0));
-            System.out.println("Total number of ground formulas : " + groundMln.groundFormulas.size());
+        System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
+        System.out.println("Total number of ground formulas : " + groundMln.groundFormulas.size());
 
-            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, truth, 100, 1000, false, true);
-            PrintWriter writer = null;
-            try {
-                if(i == 0)
-                {
-                    writer = new PrintWriter(out_file);
-                }
-                else
-                {
-                    writer = new PrintWriter(new FileOutputStream(out_file, true));
-                }
+        GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, gold, NumBurnIn, NumSamples, trackFormulaCounts, calculateMarginal);
+        PrintWriter writer = null;
+        try{
+            writer = new PrintWriter(new FileOutputStream(outFile));
+        }
+        catch (IOException e) {
+        }
+        gs.infer(true, true);
+        gs.writeMarginal(writer);
+        writer.close();
+    }
+
+    private static void parseArgs(String[] args) {
+        ArgsState state = ArgsState.Flag;
+        if (args.length == 0) {
+            System.out.println("No flags provided ");
+            System.out.println("Following are the allowed flags : ");
+            System.out.println(manual);
+            System.exit(0);
+        }
+        System.out.println("Inference parameters given : ");
+        for (String arg : args) {
+            switch (state) {
+                case MlnFile: // necessary
+                    mlnFile = arg;
+                    System.out.println("-i = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case EvidFile: // if not given, will be empty file
+                    evidenceFile = arg;
+                    System.out.println("-e = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case GoldFile:  // necessary
+                    goldFile = arg;
+                    System.out.println("-g = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case OutFile: // necessary
+                    outFile = arg;
+                    System.out.println("-o = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case EvidPreds: // If not given, will be an empty list
+                    evidPreds = Arrays.asList(arg.split(","));
+                    System.out.println("-ep = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case QueryPreds: // necessary
+                    queryPreds = Arrays.asList(arg.split(","));
+                    System.out.println("-qp = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case OpenWorld: // by default, all queryPreds are openworld
+                    openWorldPreds = Arrays.asList(arg.split(","));
+                    System.out.println("-ow = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case ClosedWorld: // by default, all evidence preds are closedworld
+                    closedWorldPreds = Arrays.asList(arg.split(","));
+                    System.out.println("-cw = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case NumSamples: // by default, it is 100
+                    NumSamples = Integer.parseInt(arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case Flag:
+                    if (arg.equals("-i")) {
+                        state = ArgsState.MlnFile;
+                    } else if (arg.equals(("-e"))) {
+                        state = ArgsState.EvidFile;
+                    } else if (arg.equals(("-g"))) {
+                        state = ArgsState.GoldFile;
+                    } else if (arg.equals(("-o"))) {
+                        state = ArgsState.OutFile;
+                    } else if (arg.equals(("-ep"))) {
+                        state = ArgsState.EvidPreds;
+                    } else if (arg.equals(("-qp"))) {
+                        state = ArgsState.QueryPreds;
+                    } else if (arg.equals(("-ow"))) {
+                        state = ArgsState.OpenWorld;
+                    } else if (arg.equals(("-cw"))) {
+                        state = ArgsState.ClosedWorld;
+                    } else if (arg.equals(("-queryEvidence"))) {
+                        queryEvidence = true;
+                    } else if (arg.equals(("-NumSamples"))) {
+                        state = ArgsState.NumSamples;
+                    } else {
+                        System.out.println("Unknown flag " + arg);
+                        System.out.println("Following are the allowed flags : ");
+                        System.out.println(manual);
+                        System.exit(0);
+                    }
+
             }
-            catch(IOException e) {
-            }
-            gs.infer(true,true);
-            gs.writeMarginal(writer);
-            writer.close();
+        }
+        if (mlnFile == null) {
+            System.out.println("Necessary to provide MLN file, exiting !!!");
+            System.exit(0);
+        }
+        if (goldFile == null) {
+            System.out.println("Necessary to provide at least one training file, exiting !!!");
+            System.exit(0);
+        }
+        if (outFile == null) {
+            System.out.println("Necessary to provide output file, exiting !!!");
+            System.exit(0);
+        }
+        if (queryPreds == null) {
+            System.out.println("Necessary to provide query predicates, exiting !!!");
+            System.exit(0);
+        }
+        if (evidenceFile == null) {
+            System.out.println("-e = " + evidenceFile);
+        }
+        if (evidPreds == null) {
+            evidPreds = new ArrayList<>();
+            System.out.println("-ep = " + evidPreds);
+        }
+        if (openWorldPreds == null) {
+            openWorldPreds = new ArrayList<>();
+            openWorldPreds.addAll(queryPreds);
+            System.out.println("-ow = " + openWorldPreds);
+        }
+        if (closedWorldPreds == null) {
+            closedWorldPreds = new ArrayList<>();
+            closedWorldPreds.addAll(evidPreds);
+            System.out.println("-cw = " + closedWorldPreds);
         }
 
+        System.out.println("-NumSamples = " + NumSamples);
+        System.out.println("-queryEvidence = " + queryEvidence);
     }
+
+        private static String manual = "-i\t(necessary) Input mln file\n" +
+                "-e\t(optional) Evidence file\n" +
+                "-g\t(Necessary) gold file\n" +
+                "-o\t(Necessary) output file\n" +
+                "-ep\t(Optional) Comma separated evidence predicates\n" +
+                "-qp\t(Necessary) Comma separated query Predicates\n" +
+                "-ow\t(Optional) Comma separated open world predicates, by default all query preds are open world\n" +
+                "-cw\t(Optional) Comma separated closed world predicates, by default all evidence preds are closed world\n" +
+                "-NumSamples\t(Optional, default 1000) number of Gibbs Samples\n" +
+                "-queryEvidence\t(Optional, default false) If specified, then groundings of query predicates not present in " +
+                "gold file are taken to be false evidence";
+
+
 }
