@@ -13,10 +13,12 @@ public class FullyGrindingMill {
     public static boolean queryEvidence = false;
     private GroundMLN groundMln;
     private List<GroundPredicate> groundPredicatesList;
+    private Map<GroundPredicate, Integer> groundPredicateIntegerMap;
 
     private void init() {
         groundMln = new GroundMLN();
         groundPredicatesList = new ArrayList<>();
+        groundPredicateIntegerMap = new HashMap<>();
     }
 
     public GroundMLN ground(MLN mln) {
@@ -84,12 +86,17 @@ public class FullyGrindingMill {
                     // Check if this groundPredicate already exists, if it does not, then add it to groundPredicate List.
                     // Note that it may happen that this clause gets removed later due to preprocessing, but still,
                     // we need this groundPredicate, so there is no harm in adding it to groundPredicate List.
-                    int gpIndex = groundPredicatesList.indexOf(gp);
+                    int gpIndex = -1;
+                    if(groundPredicateIntegerMap.containsKey(gp))
+                    {
+                        gpIndex = groundPredicateIntegerMap.get(gp);
+                    }
                     if(gpIndex == -1) {
                         groundPredicatesList.add(gp);
                         int numPossibleValues = oldAtom.symbol.values.values.size();
                         gp.numPossibleValues = numPossibleValues;
                         gpIndex = groundPredicatesList.size()-1;
+                        groundPredicateIntegerMap.put(gp, gpIndex);
                     }
                     gp = groundPredicatesList.get(gpIndex);
 
@@ -135,7 +142,7 @@ public class FullyGrindingMill {
                     newGroundClauseList.add(newGroundClause);
                     for(GroundPredicate gp : newGroundPreds)
                     {
-                        int gpIndex = groundPredicatesList.indexOf(gp);
+                        int gpIndex = groundPredicateIntegerMap.get(gp);
                         newFormula.groundPredIndices.add(gpIndex);
                         if(!gp.groundFormulaIds.containsKey(currentFormulaId))
                         {
@@ -185,6 +192,7 @@ public class FullyGrindingMill {
         GroundMLN newGroundMln = new GroundMLN();
         Map<Integer,Integer> newGpIndexToTrueVal = new HashMap<Integer,Integer>();
         List<GroundPredicate> newGpList = new ArrayList<>();
+        Map<GroundPredicate,Integer> newGpToIntegerMap = new HashMap<GroundPredicate,Integer>();
         for(GroundFormula gf : groundMln.groundFormulas)
         {
             GroundFormula newGroundFormula = new GroundFormula();
@@ -236,11 +244,15 @@ public class FullyGrindingMill {
                         // Check if this groundPredicate already exists, if it does not, then add it to groundPredicate List.
                         // Note that it may happen that this clause gets removed later due to preprocessing, but still,
                         // we need this groundPredicate, so there is no harm in adding it to groundPredicate List.
-                        int newGpIndex = newGpList.indexOf(gp);
+                        int newGpIndex = -1;
+                        if(newGpToIntegerMap.containsKey(newGp))
+                            newGpIndex = newGpToIntegerMap.get(newGp);
+
                         if(newGpIndex == -1) {
                             newGpList.add(newGp);
                             newGp.numPossibleValues = gp.numPossibleValues;
                             newGpIndex = newGpList.size()-1;
+                            newGpToIntegerMap.put(newGp,newGpIndex);
                             if(truth.predIdVal.containsKey(gpIndex))
                             {
                                 int valTrue = truth.predIdVal.get(gpIndex);
@@ -301,7 +313,7 @@ public class FullyGrindingMill {
                         //clause add karna h
                         newGcList.add(newGc);
                         for (GroundPredicate gp : newGroundPreds) {
-                            int gpIndex = newGpList.indexOf(gp);
+                            int gpIndex = newGpToIntegerMap.get(gp);
                             newGroundFormula.groundPredIndices.add(gpIndex);
                             if (!gp.groundFormulaIds.containsKey(currentFormulaId)) {
                                 gp.groundFormulaIds.put(currentFormulaId, new HashSet<Integer>());
