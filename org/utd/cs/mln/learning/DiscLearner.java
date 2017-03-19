@@ -19,18 +19,20 @@ public class DiscLearner {
     };
 
     public List<GibbsSampler_v2> inferences = new ArrayList<>();
+    public List<GibbsSampler_v2> inferencesEM = new ArrayList<>();
     public double[] weights, oldWeights, averageWeights, gradient, old_gradient, d, oldd,
             delta_pred, priorMeans, priorStdDevs;
     public double[][] formulaTrainCnts;
     public int num_iter, domain_cnt, backtrackCount, maxBacktracks;
     public double cg_lambda, cg_max_lambda, alpha, min_ll_change;
-    public boolean withEM = false, backtracked = false, preConditionCG, dldebug=false;
+    public boolean withEM = false, backtracked = false, preConditionCG, dldebug=true, usePrior=false;
     public Method method = Method.CG;
 
-    public DiscLearner(List<GibbsSampler_v2> inferences, int num_iter, double lambda, double min_ll_change, double max_lambda,
-                       boolean withEM, boolean predConditionCG)
+    public DiscLearner(List<GibbsSampler_v2> inferences, List<GibbsSampler_v2> inferencesEM, int num_iter, double lambda, double min_ll_change, double max_lambda,
+                       boolean withEM, boolean predConditionCG, boolean usePrior)
     {
         this.inferences = inferences;
+        this.inferencesEM = inferencesEM;
         this.num_iter = num_iter;
         this.backtrackCount = 0;
         this.maxBacktracks = 1000;
@@ -39,6 +41,7 @@ public class DiscLearner {
         this.cg_max_lambda = max_lambda;
         this.alpha = 1;
         this.withEM = withEM;
+        this.usePrior = usePrior;
         this.preConditionCG = predConditionCG;
         this.domain_cnt = inferences.size();
         int numFormulas = inferences.get(0).mln.formulas.size();
@@ -58,15 +61,16 @@ public class DiscLearner {
 
     public double[] learnWeights()
     {
-        findFormulaTrainCnts();
-        if(withEM)
-        {
-            // TODO : implement for EM
-        }
+        initWeights();
+        if(!withEM)
+            findFormulaTrainCnts();
 
         for (int i = 0; i < domain_cnt; i++) {
             inferences.get(i).saveAllCounts(true);
+            if(withEM)
+                inferencesEM.get(i).saveAllCounts(true);
         }
+
         long time = System.currentTimeMillis();
         boolean burningIn = true, isInit = true;
         for(int iter = 1 ; iter <= num_iter ; iter++)
@@ -75,16 +79,14 @@ public class DiscLearner {
                 System.out.println("iter : " + iter + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
             }
             setMLNWeights();
-            if(withEM)
-            {
-                //TODO: fillinmissingvalues
-            }
             System.out.println("Running inference...");
             if(backtracked) {
                 burningIn = true;
                 isInit = true;
             }
             infer(burningIn, isInit);
+            if(withEM)
+                inferEM(burningIn, isInit);
             burningIn = false;
             isInit = false;
             System.out.println("Done Inference");
@@ -104,6 +106,39 @@ public class DiscLearner {
         System.out.println("Final weights : " + Arrays.toString(weights));
         return weights;
     }
+
+    private void initWeights() {
+        MLN mln = inferences.get(0).mln;
+        if(usePrior)
+        {
+//            for (int i = 0; i < mln.formulas.size(); i++) {
+//                weights[i] = mln.formulas.get(i).weight.getValue();
+//            }
+            Random rand = new Random(LearnTest.getSeed());
+            for (int i = 0; i < mln.formulas.size(); i++) {
+                double p = rand.nextGaussian()*priorStdDevs[i]+priorMeans[i];
+                //weights[i] = p;
+                weights[i]=0;
+            }
+            if(dldebug)
+            {
+                System.out.print("Initial weights : ");
+                for (int i = 0; i < weights.length; i++) {
+                    System.out.print(weights[i]+",");
+                }
+                System.out.println();
+            }
+        }
+        else
+        {
+            Random rand = new Random(LearnTest.getSeed());
+            for (int i = 0; i < mln.formulas.size(); i++) {
+                double p = rand.nextDouble()*2-1; // generate random number b/w -1 and 1
+                weights[i] = p;
+            }
+        }
+    }
+
 
     private int updateWtsByCG(int iter)
     {
@@ -150,7 +185,11 @@ public class DiscLearner {
                     weights[i] = oldWeights[i];
 
                 for (int i = 0; i < domain_cnt; i++)
+                {
                     inferences.get(i).restoreCnts();
+                    if(withEM)
+                        inferencesEM.get(i).restoreCnts();
+                }
 
                 backtracked = true;
                 backtrackCount++;
@@ -163,12 +202,29 @@ public class DiscLearner {
         if (!backtracked)
         {
             for (int i = 0; i < domain_cnt; i++)
+            {
                 inferences.get(i).saveCnts();
+                if(withEM)
+                    inferencesEM.get(i).saveCnts();
+            }
+
             double preCond[] = new double[numWts];
             Arrays.fill(preCond, 1.0);
             if(preConditionCG)
             {
                 double variance[] = getVariance(numWts);
+                if(withEM)
+                {
+                    double varianceEM[] = getVarianceEM(numWts);
+                    for (int i = 0; i < variance.length; i++) {
+                        variance[i] -= varianceEM[i];
+                    }
+                }
+
+                for (int i = 0; i < variance.length; i++) {
+                    double sd = priorStdDevs[i];
+                    variance[i] += 1.0/(sd * sd);
+                }
                 if(dldebug)
                     System.out.println("variance : " + Arrays.toString(variance));
                 for (int formulaNum = 0; formulaNum < numWts; formulaNum++)
@@ -202,12 +258,26 @@ public class DiscLearner {
                 d[w] = -preCond[w]*gradient[w] + beta*oldd[w];
 
             double Hd[] = getHessianVectorProduct(d);
+            if(withEM)
+            {
+                double []HdEM = getHessianVectorProductEM(d);
+                for (int i = 0; i < Hd.length; i++) {
+                    Hd[i] -= HdEM[i];
+                }
+            }
             alpha = computeQuadraticStepLength(Hd);
             if (alpha < 0.0)
             {
                 for (int w = 0; w < numWts; w++)
                     d[w] = -preCond[w]*gradient[w];
                 Hd = getHessianVectorProduct(d);
+                if(withEM)
+                {
+                    double []HdEM = getHessianVectorProductEM(d);
+                    for (int i = 0; i < Hd.length; i++) {
+                        Hd[i] -= HdEM[i];
+                    }
+                }
                 alpha = computeQuadraticStepLength(Hd);
             }
         }
@@ -248,8 +318,11 @@ public class DiscLearner {
                 averageWeights[w] = ((iter - 1) * averageWeights[w] + weights[w]) / iter;
             }
             delta_pred = getHessianVectorProduct(wchange);
-            for (int i = 0; i < domain_cnt; i++)
+            for (int i = 0; i < domain_cnt; i++) {
                 inferences.get(i).resetCnts();
+                if(withEM)
+                    inferencesEM.get(i).resetCnts();
+            }
             System.out.println("weights = " + Arrays.toString(weights));
             System.out.println("Avg weights = " + Arrays.toString(averageWeights));
         }
@@ -297,16 +370,46 @@ public class DiscLearner {
         return Hd;
     }
 
+    private double[] getHessianVectorProductEM(double[] d) {
+        double Hd[] = inferencesEM.get(0).getHessianVectorProduct(d);
+        for (int i = 1; i < domain_cnt; i++) {
+            double Hd_i[] = inferencesEM.get(i).getHessianVectorProduct(d);
+            for (int j = 0; j < Hd.length; j++) {
+                Hd[j] += Hd_i[j];
+            }
+        }
+        return Hd;
+    }
+
     // get variance of inferred counts for each formula
     private double[] getVariance(int numWts) {
         double []variance = new double[numWts];
         for (int formulaNum = 0; formulaNum < numWts; formulaNum++) {
-            double sd = priorStdDevs[formulaNum];
-            variance[formulaNum] = 1.0/(sd * sd);
+//            double sd = priorStdDevs[formulaNum];
+//            variance[formulaNum] = 1.0/(sd * sd);
             for (int i = 0; i < domain_cnt; i++) {
                 double trueCnts[] = inferences.get(i).numFormulaTrueCnts;
                 double trueSqCnts[] = inferences.get(i).numFormulaTrueSqCnts;
                 int numSamples = inferences.get(i).numIter;
+                double x   = trueCnts[formulaNum];
+                double xsq = trueSqCnts[formulaNum];
+
+                // Add variance for this domain
+                variance[formulaNum] += xsq/numSamples - (x/numSamples)*(x/numSamples);
+            }
+        }
+        return variance;
+    }
+
+    private double[] getVarianceEM(int numWts) {
+        double []variance = new double[numWts];
+        for (int formulaNum = 0; formulaNum < numWts; formulaNum++) {
+//            double sd = priorStdDevs[formulaNum];
+//            variance[formulaNum] = 1.0/(sd * sd);
+            for (int i = 0; i < domain_cnt; i++) {
+                double trueCnts[] = inferencesEM.get(i).numFormulaTrueCnts;
+                double trueSqCnts[] = inferencesEM.get(i).numFormulaTrueSqCnts;
+                int numSamples = inferencesEM.get(i).numIter;
                 double x   = trueCnts[formulaNum];
                 double xsq = trueSqCnts[formulaNum];
 
@@ -377,13 +480,35 @@ public class DiscLearner {
     private void getGradientForDomain(double []gradient, int domainIndex)
     {
         double []formulaInferredCnts = inferences.get(domainIndex).numFormulaTrueCnts;
+        double []formulaInferredCntsEM = null;
+        if(withEM)
+            formulaInferredCntsEM = inferencesEM.get(domainIndex).numFormulaTrueCnts;
+
         if(dldebug)
-            System.out.println("FormulaNum\tactual Count\tInferred Count");
+        {
+            if(withEM)
+                System.out.println("FormulaNum\tEM Count\tInferred Count");
+            else
+                System.out.println("FormulaNum\tactual Count\tInferred Count");
+
+        }
+
         for (int j = 0; j < formulaInferredCnts.length; j++) {
             double inferredCount = formulaInferredCnts[j]/inferences.get(domainIndex).numIter;
+            double inferredCountEM = 0;
+            if(withEM)
+                inferredCountEM = formulaInferredCntsEM[j]/inferencesEM.get(domainIndex).numIter;
             if(dldebug)
-                System.out.println(j + '\t' + formulaTrainCnts[domainIndex][j] + '\t' + inferredCount);
-            gradient[j] -= (formulaTrainCnts[domainIndex][j] - inferredCount);
+            {
+                if(withEM)
+                    System.out.println(j + "\t" + inferredCountEM + "\t" + inferredCount);
+                else
+                    System.out.println(j + "\t" + formulaTrainCnts[domainIndex][j] + "\t" + inferredCount);
+            }
+            if(withEM)
+                gradient[j] -= (inferredCountEM - inferredCount);
+            else
+                gradient[j] -= (formulaTrainCnts[domainIndex][j] - inferredCount);
         }
     }
 
@@ -396,6 +521,18 @@ public class DiscLearner {
             inferences.get(i).updateWtsForNextGndPred(0);
             System.out.println("Doing inference for domain " + i);
             inferences.get(i).infer(burningIn, isInit);
+        }
+    }
+
+    private void inferEM(boolean burningIn, boolean isInit) {
+
+        MLN mln = inferencesEM.get(0).mln;
+        for (int i = 0; i < domain_cnt; i++) {
+            State state = inferencesEM.get(i).state;
+            state.setGroundFormulaWtsToParentWts(mln);
+            inferencesEM.get(i).updateWtsForNextGndPred(0);
+            System.out.println("Doing inference in EM for domain " + i);
+            inferencesEM.get(i).infer(burningIn, isInit);
         }
     }
 

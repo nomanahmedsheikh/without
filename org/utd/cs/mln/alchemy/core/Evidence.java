@@ -15,6 +15,18 @@ public class Evidence {
 	}
 
 
+	public static Evidence mergeEvidence(Evidence evid1, Evidence evid2) {
+		Evidence result = new Evidence();
+		for(Integer key : evid1.predIdVal.keySet())
+		{
+			result.predIdVal.put(key, evid1.predIdVal.get(key));
+		}
+		for(Integer key : evid2.predIdVal.keySet())
+		{
+			result.predIdVal.put(key, evid2.predIdVal.get(key));
+		}
+		return result;
+	}
 }
 
 

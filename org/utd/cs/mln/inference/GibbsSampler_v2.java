@@ -2,6 +2,7 @@ package org.utd.cs.mln.inference;
 
 import org.utd.cs.gm.utility.Timer;
 import org.utd.cs.mln.alchemy.core.*;
+import org.utd.cs.mln.learning.LearnTest;
 
 import java.io.PrintWriter;
 import java.util.*;
@@ -12,21 +13,20 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class GibbsSampler_v2 {
     public MLN mln;
-    public Evidence evidence, truth;
+    public Evidence truth;
     public State state;
     public List<List<Integer>> countNumAssignments = new ArrayList<>(); // For each groundPred in state.mln.groundPreds, stores how many times this groundpred gets assigned to a  particular value. Used for calculating marginal prob
     public List<List<Double>> marginals = new ArrayList<>();
     public double[][] allFormulaTrueCnts; // allFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample
     public double[][] oldAllFormulaTrueCnts; // oldAllFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample in the previous iter of learning
     public double[] numFormulaTrueCnts, numFormulaTrueSqCnts; // sum of true counts of formulas over all samples.
-    boolean trackFormulaCounts = false, saveAllCounts = false, gsdebug=false, calculate_marginal=true;
+    boolean trackFormulaCounts = false, saveAllCounts = false, gsdebug=true, calculate_marginal=true;
 
     public int numBurnSteps, numIter;
 
-    public GibbsSampler_v2(MLN mln, GroundMLN groundMLN, Evidence evidence, Evidence truth, int numBurnSteps, int numIter, boolean trackFormulaCounts, boolean calculate_marginal)
+    public GibbsSampler_v2(MLN mln, GroundMLN groundMLN, Evidence truth, int numBurnSteps, int numIter, boolean trackFormulaCounts, boolean calculate_marginal)
     {
         this.mln = mln;
-        this.evidence = evidence;
         this.truth = truth;
         state = new State(groundMLN);
         this.numBurnSteps = numBurnSteps;
@@ -464,7 +464,9 @@ public class GibbsSampler_v2 {
 
     private int getRandomAssignment(List<Double> probabilities)
     {
-        double p = Math.random();
+//        double p = Math.random();
+        Random rand = new Random(LearnTest.getSeed());
+        double p = rand.nextDouble();
         double cumulativeProbability = 0.0;
         for (int i = 0 ; i < probabilities.size() ; i++) {
             cumulativeProbability += probabilities.get(i);
@@ -476,7 +478,8 @@ public class GibbsSampler_v2 {
     }
 
     private int getUniformAssignment(int numPossibleVals) {
-        return ThreadLocalRandom.current().nextInt(0,numPossibleVals);
+        Random rand = new Random(LearnTest.getSeed());
+        return rand.nextInt(numPossibleVals);
     }
 
     public double[] getHessianVectorProduct(double[] v) {

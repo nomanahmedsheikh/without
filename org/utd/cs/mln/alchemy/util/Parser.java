@@ -36,74 +36,46 @@ public class Parser {
     public static ArrayList<String> closed_world = new ArrayList<>();
     public static ArrayList<String> hidden_world = new ArrayList<>();
 
-    public Map<String, Set<Integer>> collectDomain(String evidFile, String truthFile) throws FileNotFoundException {
+    public Map<String, Set<Integer>> collectDomain(String files[]) throws FileNotFoundException {
 
         Map<String, Set<Integer>> varTypeToDomain = new HashMap<>();
-        if(evidFile != null)
+        for(String file : files)
         {
-            Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(evidFile))));
-            Evidence evidence = new Evidence();
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine().replaceAll("\\s", "");
-
-                if (line.isEmpty()) {
-                    continue;
-                }
-                String[] predArr = line.split(REGEX_ESCAPE_CHAR + LEFTPRNTH);
-                String symbolName = predArr[0];
-                String[] predArr2 = predArr[1].split(EQUALSTO);
-                String[] termNames = predArr2[0].replace(RIGHTPRNTH, "").split(COMMASEPARATOR);
-                for(PredicateSymbol symbol : mln.symbols)
-                {
-                    if(symbol.symbol.equals((symbolName)))
-                    {
-                        for(int i = 0 ; i < termNames.length ; i++)
-                        {
-                            String var_type = symbol.variable_types.get(i);
-                            if(!varTypeToDomain.containsKey(var_type))
-                            {
-                                varTypeToDomain.put(var_type, new HashSet<>());
-                            }
-                            varTypeToDomain.get(var_type).add(Integer.parseInt(termNames[i]));
-                        }
-                        break;
-                    }
-                }
-
-            }
-            scanner.close();
-        }
-
-        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(truthFile))));
-        while (scanner.hasNextLine()) {
-            String line = scanner.nextLine().replaceAll("\\s", "");
-
-            if (line.isEmpty()) {
-                continue;
-            }
-            String[] predArr = line.split(REGEX_ESCAPE_CHAR + LEFTPRNTH);
-            String symbolName = predArr[0];
-            String[] predArr2 = predArr[1].split(EQUALSTO);
-            String[] termNames = predArr2[0].replace(RIGHTPRNTH, "").split(COMMASEPARATOR);
-            for(PredicateSymbol symbol : mln.symbols)
+            if(file != null)
             {
-                if(symbol.symbol.equals((symbolName)))
-                {
-                    for(int i = 0 ; i < termNames.length ; i++)
-                    {
-                        String var_type = symbol.variable_types.get(i);
-                        if(!varTypeToDomain.containsKey(var_type))
-                        {
-                            varTypeToDomain.put(var_type, new HashSet<>());
-                        }
-                        varTypeToDomain.get(var_type).add(Integer.parseInt(termNames[i]));
-                    }
-                    break;
-                }
-            }
+                Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(file))));
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine().replaceAll("\\s", "");
 
+                    if (line.isEmpty()) {
+                        continue;
+                    }
+                    String[] predArr = line.split(REGEX_ESCAPE_CHAR + LEFTPRNTH);
+                    String symbolName = predArr[0];
+                    String[] predArr2 = predArr[1].split(EQUALSTO);
+                    String[] termNames = predArr2[0].replace(RIGHTPRNTH, "").split(COMMASEPARATOR);
+                    for(PredicateSymbol symbol : mln.symbols)
+                    {
+                        if(symbol.symbol.equals((symbolName)))
+                        {
+                            for(int i = 0 ; i < termNames.length ; i++)
+                            {
+                                String var_type = symbol.variable_types.get(i);
+                                if(!varTypeToDomain.containsKey(var_type))
+                                {
+                                    varTypeToDomain.put(var_type, new HashSet<Integer>());
+                                }
+                                varTypeToDomain.get(var_type).add(Integer.parseInt(termNames[i]));
+                            }
+                            break;
+                        }
+                    }
+
+                }
+                scanner.close();
+            }
         }
-        scanner.close();
+
         return varTypeToDomain;
     }
 

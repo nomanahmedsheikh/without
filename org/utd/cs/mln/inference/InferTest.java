@@ -53,20 +53,23 @@ public class InferTest {
             mlns.add(mln);
             Parser parser = new Parser(mln);
             parser.parseInputMLNFile(filename);
-            Map<String, Set<Integer>> varTypeToDomain = parser.collectDomain(evidFiles.get(i), trainFiles.get(i));
+            String files[] = new String[2];
+            files[0] = evidFiles.get(i);
+            files[1] = trainFiles.get(i);
+            Map<String, Set<Integer>> varTypeToDomain = parser.collectDomain(files);
             mln.overWriteDomain(varTypeToDomain);
             System.out.println("Creating MRF...");
             long time = System.currentTimeMillis();
             GroundMLN groundMln = fgm.ground(mln);
             Evidence evidence = parser.parseEvidence(groundMln, evidFiles.get(i));
             Evidence truth = parser.parseEvidence(groundMln,trainFiles.get(i));
-            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidence_preds, query_preds);
+            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidence_preds, query_preds, null, false);
 
             groundMlns.add(newGroundMln);
             System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time)/1000.0));
             System.out.println("Total number of ground formulas : " + groundMln.groundFormulas.size());
 
-            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, truth, 100, 1000, false, true);
+            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, truth, 100, 1000, false, true);
             PrintWriter writer = null;
             try {
                 if(i == 0)

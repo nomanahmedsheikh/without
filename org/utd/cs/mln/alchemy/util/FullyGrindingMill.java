@@ -118,8 +118,8 @@ public class FullyGrindingMill {
                     // this clause shouldn't be added, but still we shouldn't just break out of this loop, as we
                     // need to add groundPredicates, but we shouldn't add any clauseInfo into groundPredicates appearing
                     // in this clause.
-                    if(gpBitSet.cardinality() == gp.numPossibleValues)
-                        clauseToRemove = true;
+//                    if(gpBitSet.cardinality() == gp.numPossibleValues)
+//                        clauseToRemove = true;
                     gpIndexToSatVals.put(gpIndexInClause, gpBitSet);
 
                 }
@@ -139,7 +139,7 @@ public class FullyGrindingMill {
                         newFormula.groundPredIndices.add(gpIndex);
                         if(!gp.groundFormulaIds.containsKey(currentFormulaId))
                         {
-                            gp.groundFormulaIds.put(currentFormulaId, new HashSet<>());
+                            gp.groundFormulaIds.put(currentFormulaId, new HashSet<Integer>());
                         }
                         gp.groundFormulaIds.get(currentFormulaId).add(newGroundClauseList.size()-1);
                     }
@@ -181,7 +181,7 @@ public class FullyGrindingMill {
 
     }
 
-    public GroundMLN handleEvidence(GroundMLN groundMln, Evidence evidence, Evidence truth, List<String> evidence_preds, List<String> query_preds) throws CloneNotSupportedException {
+    public GroundMLN handleEvidence(GroundMLN groundMln, Evidence evidence, Evidence truth, List<String> evidence_preds, List<String> query_preds, List<String> hidden_preds, boolean withEM) throws CloneNotSupportedException {
         GroundMLN newGroundMln = new GroundMLN();
         List<GroundPredicate> newGpList = new ArrayList<>();
         for(GroundFormula gf : groundMln.groundFormulas)
@@ -208,9 +208,15 @@ public class FullyGrindingMill {
                     // If gp is not in evidence and openworld
                     // and if gp is in truth and queryEvidence
                     boolean toAdd = false;
-                    if(evidence_preds.contains(gp.symbol.symbol) && gp.symbol.world == PredicateSymbol.WorldState.open)
-                        toAdd = true;
-                    else if(query_preds.contains(gp.symbol.symbol) && (truth.predIdVal.containsKey(gpIndex) || !queryEvidence))
+                    if(!withEM)
+                    {
+                        if(evidence_preds.contains(gp.symbol.symbol) && gp.symbol.world == PredicateSymbol.WorldState.open)
+                            toAdd = true;
+                        else if(query_preds.contains(gp.symbol.symbol) && (truth.predIdVal.containsKey(gpIndex) || !queryEvidence))
+                            toAdd = true;
+                    }
+
+                    if(hidden_preds.contains(gp.symbol.symbol))
                         toAdd = true;
 
                     if(toAdd)
@@ -270,7 +276,7 @@ public class FullyGrindingMill {
                                 }
                             }
                         }
-                        else
+                        else // If it is not evidence pred, but queryevidence is true
                         {
                             if(b.get(0)) // If it is closed world and not in evidence, then we assume that its true val is 0.
                             {
@@ -283,7 +289,7 @@ public class FullyGrindingMill {
                 }
                 if(clauseToRemove == false)
                 {
-                    if(newGpList.size() > 0)
+                    if(newGc.groundPredIndices.size() > 0)
                     {
                         //clause add karna h
                         newGcList.add(newGc);
@@ -291,7 +297,7 @@ public class FullyGrindingMill {
                             int gpIndex = newGpList.indexOf(gp);
                             newGroundFormula.groundPredIndices.add(gpIndex);
                             if (!gp.groundFormulaIds.containsKey(currentFormulaId)) {
-                                gp.groundFormulaIds.put(currentFormulaId, new HashSet<>());
+                                gp.groundFormulaIds.put(currentFormulaId, new HashSet<Integer>());
                             }
                             gp.groundFormulaIds.get(currentFormulaId).add(newGcList.size() - 1);
                         }

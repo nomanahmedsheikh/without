@@ -21,13 +21,18 @@ import java.util.*;
 public class LearnTest {
 
     private static final String REGEX_ESCAPE_CHAR = "\\";
-    private static int numIter=100;
+    private static int numIter=100, numSamples=200;
     private static String mlnFile, outFile;
     private static String []evidenceFiles, truthFiles;
-    private static boolean queryEvidence=false;
+    private static boolean queryEvidence=false, withEM=false, usePrior=false;
     private static int numDb;
-    private static double minllChange = 1; // changed from 10^-5 to 1 so that numIter reduces
-    private static List<String> evidPreds, queryPreds = null, openWorldPreds, closedWorldPreds;
+    private static double minllChange = 0.00001; // changed from 10^-5 to 1 so that numIter reduces
+    private static List<String> evidPreds, hiddenPreds, queryPreds = null, openWorldPreds, closedWorldPreds;
+
+    public static long getSeed(){
+        //return 123456789;
+        return System.currentTimeMillis();
+    }
 
     private enum ArgsState{
         MlnFile,
@@ -36,9 +41,8 @@ public class LearnTest {
         OutFile,
         OpenWorld,
         ClosedWorld,
-        QueryEvidence,
         NumIter,
-        EvidPreds, QueryPreds, Flag, NumSamples
+        EvidPreds, QueryPreds, HiddenPreds, Flag, NumSamples
     }
     public static void main(String []args) throws FileNotFoundException, CloneNotSupportedException {
         long totaltime = System.currentTimeMillis();
@@ -56,6 +60,7 @@ public class LearnTest {
         List<GroundMLN> groundMlns = new ArrayList<>();
 
         List<GibbsSampler_v2> inferences = new ArrayList<>();
+        List<GibbsSampler_v2> inferencesEM = new ArrayList<GibbsSampler_v2>();
         FullyGrindingMill fgm = new FullyGrindingMill();
         for(int i = 0 ; i < numDb ; i++)
         {
@@ -64,24 +69,37 @@ public class LearnTest {
             Parser parser = new Parser(mln);
             parser.parseInputMLNFile(mlnFile);
             System.out.println("DB file "+(i+1));
-            Map<String, Set<Integer>> varTypeToDomain = parser.collectDomain(evidenceFiles[i], truthFiles[i]);
+            String files[] = new String[2];
+            files[0] = evidenceFiles[i];
+            files[1] = truthFiles[i];
+            Map<String, Set<Integer>> varTypeToDomain = parser.collectDomain(files);
             mln.overWriteDomain(varTypeToDomain);
             System.out.println("Creating MRF...");
             long time = System.currentTimeMillis();
             GroundMLN groundMln = fgm.ground(mln);
             Evidence evidence = parser.parseEvidence(groundMln,evidenceFiles[i]);
             Evidence truth = parser.parseEvidence(groundMln,truthFiles[i]);
-            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidPreds, queryPreds);
-            groundMlns.add(newGroundMln);
+
+            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidPreds, queryPreds, hiddenPreds, false);
+            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, truth, 100, numSamples, true, false);
+            inferences.add(gs);
+
+            if(withEM)
+            {
+                List<String> evidEmPreds = new ArrayList<String>();
+                evidEmPreds.addAll(evidPreds);
+                evidEmPreds.addAll(queryPreds);
+                GroundMLN EMNewGroundMln = fgm.handleEvidence(groundMln, Evidence.mergeEvidence(evidence,truth), null, evidEmPreds, null, hiddenPreds, true);
+                GibbsSampler_v2 gsEM = new GibbsSampler_v2(mln, EMNewGroundMln, truth, 100, numSamples, true, false);
+                inferencesEM.add(gsEM);
+            }
             System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time)/1000.0));
             System.out.println("Total number of ground formulas : " + newGroundMln.groundFormulas.size());
 
-            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, evidence, truth, 100, 200, true, false);
-            inferences.add(gs);
         }
 
         // Start learning
-        DiscLearner dl = new DiscLearner(inferences, numIter, 100.0, minllChange, Double.MAX_VALUE, false, true);
+        DiscLearner dl = new DiscLearner(inferences, inferencesEM, numIter, 100.0, minllChange, Double.MAX_VALUE, withEM, true, usePrior);
         double [] weights = dl.learnWeights();
         dl.writeWeights(outFile, weights);
         System.out.println("Total Time taken : " + Timer.time((System.currentTimeMillis() - totaltime)/1000.0));
@@ -138,6 +156,12 @@ public class LearnTest {
                     state = ArgsState.Flag;
                     continue;
 
+                case HiddenPreds: // necessary
+                    hiddenPreds = Arrays.asList(arg.split(","));
+                    System.out.println("-hp = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
                 case OpenWorld: // by default, all queryPreds are openworld
                     openWorldPreds = Arrays.asList(arg.split(","));
                     System.out.println("-ow = " + arg);
@@ -150,15 +174,14 @@ public class LearnTest {
                     state = ArgsState.Flag;
                     continue;
 
-                case QueryEvidence: // by default, it is false
-                    queryEvidence = true;
-                    System.out.println("-queryEvidence = " + arg);
-                    state = ArgsState.Flag;
-                    continue;
 
                 case NumIter: // by default, it is 100
                     numIter = Integer.parseInt(arg);
-                    System.out.println("-NumIter = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case NumSamples: // by default, it is 100
+                    numSamples = Integer.parseInt(arg);
                     state = ArgsState.Flag;
                     continue;
 
@@ -187,6 +210,10 @@ public class LearnTest {
                     {
                         state = ArgsState.QueryPreds;
                     }
+                    else if(arg.equals(("-hp")))
+                    {
+                        state = ArgsState.HiddenPreds;
+                    }
                     else if(arg.equals(("-ow")))
                     {
                         state = ArgsState.OpenWorld;
@@ -197,11 +224,23 @@ public class LearnTest {
                     }
                     else if(arg.equals(("-queryEvidence")))
                     {
-                        state = ArgsState.QueryEvidence;
+                        queryEvidence = true;
+                    }
+                    else if(arg.equals(("-usePrior")))
+                    {
+                        usePrior = true;
                     }
                     else if(arg.equals(("-NumIter")))
                     {
                         state = ArgsState.NumIter;
+                    }
+                    else if(arg.equals(("-NumSamples")))
+                    {
+                        state = ArgsState.NumSamples;
+                    }
+                    else if(arg.equals(("-withEM")))
+                    {
+                        withEM = true;
                     }
                     else
                     {
@@ -243,10 +282,16 @@ public class LearnTest {
             evidPreds = new ArrayList<>();
             System.out.println("-ep = " + evidPreds);
         }
+        if(hiddenPreds == null)
+        {
+            hiddenPreds = new ArrayList<>();
+            System.out.println("-hp = " + hiddenPreds);
+        }
         if(openWorldPreds == null)
         {
             openWorldPreds = new ArrayList<>();
             openWorldPreds.addAll(queryPreds);
+            openWorldPreds.addAll(hiddenPreds);
             System.out.println("-ow = " + openWorldPreds);
         }
         if(closedWorldPreds == null)
@@ -255,6 +300,11 @@ public class LearnTest {
             closedWorldPreds.addAll(evidPreds);
             System.out.println("-cw = " + closedWorldPreds);
         }
+        System.out.println("-NumIter = " + numIter);
+        System.out.println("-NumSamples = " + numSamples);
+        System.out.println("-queryEvidence = " + queryEvidence);
+        System.out.println("-usePrior = " + usePrior);
+        System.out.println("-withEM = " + withEM);
 
     }
 
@@ -264,10 +314,14 @@ public class LearnTest {
             "-o\t(Necessary) output file\n" +
             "-ep\t(Optional) Comma separated evidence predicates\n" +
             "-qp\t(Necessary) Comma separated query Predicates\n" +
+            "-hp\t(Necessary with EM) Comma separated hidden Predicates\n" +
             "-ow\t(Optional) Comma separated open world predicates, by default all query preds are open world\n" +
             "-cw\t(Optional) Comma separated closed world predicates, by default all evidence preds are closed world\n" +
             "-NumIter\t(Optional, default 100) number of learning iterations\n" +
+            "-NumSamples\\t(Optional, default 200) number of inference iterations\\n\"" +
             "-queryEvidence\t(Optional, default false) If specified, then groundings of query predicates not present in " +
-            "training file are taken to be false evidence\n";
+            "training file are taken to be false evidence\n" +
+            "-withEM\t(Optional) If specified, learn using EM" +
+            "-usePrior\t(Optional) If specified, initialize weights to MLN weights";
 
 }
