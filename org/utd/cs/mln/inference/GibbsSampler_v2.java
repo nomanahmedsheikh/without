@@ -465,7 +465,8 @@ public class GibbsSampler_v2 {
     private int getRandomAssignment(List<Double> probabilities)
     {
 //        double p = Math.random();
-        Random rand = new Random(LearnTest.getSeed());
+        //Random rand = new Random(LearnTest.getSeed());
+        Random rand = new Random();
         double p = rand.nextDouble();
         double cumulativeProbability = 0.0;
         for (int i = 0 ; i < probabilities.size() ; i++) {
@@ -478,7 +479,8 @@ public class GibbsSampler_v2 {
     }
 
     private int getUniformAssignment(int numPossibleVals) {
-        Random rand = new Random(LearnTest.getSeed());
+        //Random rand = new Random(LearnTest.getSeed());
+        Random rand = new Random();
         return rand.nextInt(numPossibleVals);
     }
 

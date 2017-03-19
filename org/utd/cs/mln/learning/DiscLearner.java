@@ -3,10 +3,10 @@ package org.utd.cs.mln.learning;
 import org.utd.cs.gm.core.LogDouble;
 import org.utd.cs.gm.utility.Timer;
 import org.utd.cs.mln.alchemy.core.*;
+import org.utd.cs.mln.alchemy.util.Parser;
 import org.utd.cs.mln.inference.GibbsSampler_v2;
 
-import java.io.FileNotFoundException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.util.*;
 
 /**
@@ -114,7 +114,8 @@ public class DiscLearner {
 //            for (int i = 0; i < mln.formulas.size(); i++) {
 //                weights[i] = mln.formulas.get(i).weight.getValue();
 //            }
-            Random rand = new Random(LearnTest.getSeed());
+            //Random rand = new Random(LearnTest.getSeed());
+            Random rand = new Random();
             for (int i = 0; i < mln.formulas.size(); i++) {
                 double p = rand.nextGaussian()*priorStdDevs[i]+priorMeans[i];
                 //weights[i] = p;
@@ -131,7 +132,8 @@ public class DiscLearner {
         }
         else
         {
-            Random rand = new Random(LearnTest.getSeed());
+            //Random rand = new Random(LearnTest.getSeed());
+            Random rand = new Random();
             for (int i = 0; i < mln.formulas.size(); i++) {
                 double p = rand.nextDouble()*2-1; // generate random number b/w -1 and 1
                 weights[i] = p;
@@ -318,6 +320,7 @@ public class DiscLearner {
                 averageWeights[w] = ((iter - 1) * averageWeights[w] + weights[w]) / iter;
             }
             delta_pred = getHessianVectorProduct(wchange);
+            //TODO : delta pred for EM ?
             for (int i = 0; i < domain_cnt; i++) {
                 inferences.get(i).resetCnts();
                 if(withEM)
@@ -546,15 +549,33 @@ public class DiscLearner {
         }
     }
 
-    public void writeWeights(String out_file, double []weights) {
+    public void writeWeights(String mln_file, String out_file, double []weights) throws FileNotFoundException {
+        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(mln_file))));
+        PrintWriter pw = new PrintWriter(out_file);
+        boolean isformula = false;
+        int formulaNum = 0;
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine().replaceAll("\\s", "");
 
-        try (PrintWriter writer = new PrintWriter(out_file)) {
-            for(double w : weights)
-            {
-                writer.println(w);
+            if(line.isEmpty() || line.contains(Parser.COMMENT)) {
+                pw.write(line+"\n");
+                continue;
             }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            if (line.contains("#formulas")) {
+                pw.write("#formulas\n");
+                isformula = true;
+                continue;
+            }
+            if (isformula == false) {
+                pw.write(line + "\n");
+                continue;
+            } else {
+                String[] formulaArr = line.split(Parser.WEIGHTSEPARATOR);
+                pw.printf(formulaArr[0] + Parser.WEIGHTSEPARATOR + "%.3f\n",weights[formulaNum]);
+                formulaNum++;
+            }
         }
+        scanner.close();
+        pw.close();
     }
 }

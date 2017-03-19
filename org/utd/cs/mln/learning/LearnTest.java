@@ -26,7 +26,7 @@ public class LearnTest {
     private static String []evidenceFiles, truthFiles;
     private static boolean queryEvidence=false, withEM=false, usePrior=false;
     private static int numDb;
-    private static double minllChange = 0.00001; // changed from 10^-5 to 1 so that numIter reduces
+    private static double minllChange = 1; // changed from 10^-5 to 1 so that numIter reduces
     private static List<String> evidPreds, hiddenPreds, queryPreds = null, openWorldPreds, closedWorldPreds;
 
     public static long getSeed(){
@@ -79,8 +79,8 @@ public class LearnTest {
             GroundMLN groundMln = fgm.ground(mln);
             Evidence evidence = parser.parseEvidence(groundMln,evidenceFiles[i]);
             Evidence truth = parser.parseEvidence(groundMln,truthFiles[i]);
-
-            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidPreds, queryPreds, hiddenPreds, false);
+            //GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidPreds, queryPreds, hiddenPreds, false);
+            GroundMLN newGroundMln = groundMln;
             GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, truth, 100, numSamples, true, false);
             inferences.add(gs);
 
@@ -101,7 +101,7 @@ public class LearnTest {
         // Start learning
         DiscLearner dl = new DiscLearner(inferences, inferencesEM, numIter, 100.0, minllChange, Double.MAX_VALUE, withEM, true, usePrior);
         double [] weights = dl.learnWeights();
-        dl.writeWeights(outFile, weights);
+        dl.writeWeights(mlnFile, outFile, weights);
         System.out.println("Total Time taken : " + Timer.time((System.currentTimeMillis() - totaltime)/1000.0));
     }
 

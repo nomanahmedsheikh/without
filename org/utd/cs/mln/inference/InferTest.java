@@ -19,19 +19,20 @@ import java.util.*;
 public class InferTest {
 
     public static void main(String []args) throws FileNotFoundException, CloneNotSupportedException {
-        String filename = "/Users/Happy/phd/experiments/without/data/Imdb/mln/imdb_mln.txt";
-        String out_file = "/Users/Happy/phd/experiments/without/data/Imdb/results/imdb_results.txt";
-        String evidence_file1 = "/Users/Happy/phd/experiments/without/data/Imdb/db/imdb.5_movie.actor.director.workedUnder_30.txt";
+        String filename = "/Users/Happy/IdeaProjects/Without_7/data/imdb/mln/imdb_subtyped_out_mln.1.txt";
+        String out_file = "/Users/Happy/IdeaProjects/Without_7/data/imdb/results/imdb_results_st.1.txt";
+        String evidence_file1 = "/Users/Happy/IdeaProjects/Without_7/data/imdb/db/imdb.2_movie.actor.director.workedUnder_30.txt";
         //String evidence_file2 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
-        String train_file1 = "/Users/Happy/phd/experiments/without/data/MultiValued_data/empty_file.txt";
+        String train_file1 = "/Users/Happy/IdeaProjects/Without_7/data/imdb/db/empty_file.txt";
         //String train_file2 = "/Users/Happy/phd/experiments/without/data/Imdb/imdb.2_train.txt";
         //List<String> evidence_preds = Arrays.asList(args[4].split(","));
         List<String> evidence_preds = Arrays.asList("actor,director,movie,workedUnder".split(","));
-        List<String> query_preds = Arrays.asList("actor,director,movie,workedUnder".split(","));
+        List<String> query_preds = Arrays.asList("actor,director,movie,workedUnder,st".split(","));
         Parser.open_world.add("actor");
         Parser.open_world.add("director");
         Parser.open_world.add("movie");
         Parser.open_world.add("workedUnder");
+        Parser.open_world.add("st");
 //        open_world.add("C");
 //        open_world.add("S");
 //        open_world.add("F");

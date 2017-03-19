@@ -10,17 +10,21 @@ import java.util.*;
  */
 public class FullyGrindingMill {
 
-    public static boolean queryEvidence = false;
+    public static boolean queryEvidence = false, fgmdebug=true;
     private GroundMLN groundMln;
     private List<GroundPredicate> groundPredicatesList;
+    private Map<GroundPredicate,Integer> groundPredicateToIndexMap;
 
     private void init() {
         groundMln = new GroundMLN();
         groundPredicatesList = new ArrayList<>();
+        groundPredicateToIndexMap = new HashMap<>();
     }
 
     public GroundMLN ground(MLN mln) {
         init();
+        int formulaNum = 0;
+        System.out.println("Total formulas : " + mln.formulas.size());
         for(Formula formula : mln.formulas)
         {
             Set<Term> formulaWiseTermToGround = new HashSet<Term>();
@@ -32,7 +36,10 @@ public class FullyGrindingMill {
                     }
                 }
             }
+            System.out.println("grounding formula "+formulaNum+", number of predicates so far : " + groundPredicatesList.size());
             ground(formula, new ArrayList<Term>(formulaWiseTermToGround));
+            System.out.println("grounded formula..., number of prdicates now : " + groundPredicatesList.size());
+            formulaNum++;
         }
 
         groundMln.groundPredicates.addAll(groundPredicatesList);
@@ -93,6 +100,20 @@ public class FullyGrindingMill {
                     }
                     gp = groundPredicatesList.get(gpIndex);
 
+//                    int gpIndex = 0;
+//                    if(!groundPredicateToIndexMap.containsKey(gp)) {
+//                        groundPredicateToIndexMap.put(gp, groundPredicateToIndexMap.size());
+//                        groundPredicatesList.add(gp);
+//                        int numPossibleValues = oldAtom.symbol.values.values.size();
+//                        gp.numPossibleValues = numPossibleValues;
+//                        gpIndex = groundPredicatesList.size()-1;
+//                    }
+//                    else
+//                    {
+//                        gpIndex = groundPredicateToIndexMap.get(gp);
+//                    }
+//                    gp = groundPredicatesList.get(gpIndex);
+
                     // Check if this groundPredicate occurs first time in this ground clause. then update
                     // groundClause's data structures about this groundPredicate.
                     int gpIndexInClause = newGroundClause.groundPredIndices.indexOf(gpIndex);
@@ -136,6 +157,7 @@ public class FullyGrindingMill {
                     for(GroundPredicate gp : newGroundPreds)
                     {
                         int gpIndex = groundPredicatesList.indexOf(gp);
+//                        int gpIndex = groundPredicateToIndexMap.get(gp);
                         newFormula.groundPredIndices.add(gpIndex);
                         if(!gp.groundFormulaIds.containsKey(currentFormulaId))
                         {
@@ -182,10 +204,19 @@ public class FullyGrindingMill {
     }
 
     public GroundMLN handleEvidence(GroundMLN groundMln, Evidence evidence, Evidence truth, List<String> evidence_preds, List<String> query_preds, List<String> hidden_preds, boolean withEM) throws CloneNotSupportedException {
+        if(fgmdebug)
+            System.out.println("Handling evidence..., number of formulas : "+groundMln.groundFormulas.size());
         GroundMLN newGroundMln = new GroundMLN();
         List<GroundPredicate> newGpList = new ArrayList<>();
+        int formulaNum = 0;
         for(GroundFormula gf : groundMln.groundFormulas)
         {
+            formulaNum++;
+            if(fgmdebug)
+            {
+                if(formulaNum%10000==0)
+                    System.out.println("Formula Num : "+formulaNum);
+            }
             GroundFormula newGroundFormula = new GroundFormula();
             int currentFormulaId = newGroundMln.groundFormulas.size();
             newGroundFormula.weight = gf.weight;
@@ -215,9 +246,11 @@ public class FullyGrindingMill {
                         else if(query_preds.contains(gp.symbol.symbol) && (truth.predIdVal.containsKey(gpIndex) || !queryEvidence))
                             toAdd = true;
                     }
-
-                    if(hidden_preds.contains(gp.symbol.symbol))
-                        toAdd = true;
+                    else
+                    {
+                        if(hidden_preds.contains(gp.symbol.symbol))
+                            toAdd = true;
+                    }
 
                     if(toAdd)
                     {

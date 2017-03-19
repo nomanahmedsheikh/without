@@ -36,6 +36,7 @@ public class Parser {
     public static ArrayList<String> closed_world = new ArrayList<>();
     public static ArrayList<String> hidden_world = new ArrayList<>();
 
+
     public Map<String, Set<Integer>> collectDomain(String files[]) throws FileNotFoundException {
 
         Map<String, Set<Integer>> varTypeToDomain = new HashMap<>();
