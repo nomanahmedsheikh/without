@@ -26,7 +26,7 @@ public class LearnTest {
     private static String []evidenceFiles, truthFiles;
     private static boolean queryEvidence=false, withEM=false, usePrior=false;
     private static int numDb;
-    private static double minllChange = 1; // changed from 10^-5 to 1 so that numIter reduces
+    private static double minllChange = 0.0001; // changed from 10^-5 to 1 so that numIter reduces
     private static List<String> evidPreds, hiddenPreds, queryPreds = null, openWorldPreds, closedWorldPreds;
 
     public static long getSeed(){
@@ -69,9 +69,11 @@ public class LearnTest {
             Parser parser = new Parser(mln);
             parser.parseInputMLNFile(mlnFile);
             System.out.println("DB file "+(i+1));
-            String files[] = new String[2];
-            files[0] = evidenceFiles[i];
-            files[1] = truthFiles[i];
+            String files[] = new String[1];
+            //files[0] = evidenceFiles[i];
+            files[0] = truthFiles[i];
+            //TODO : for now, we send only truth file to collectDomain, otherwise send both truth and evidence.
+            // We assume that there is no new constant in evidence.
             Map<String, Set<Integer>> varTypeToDomain = parser.collectDomain(files);
             mln.overWriteDomain(varTypeToDomain);
             System.out.println("Creating MRF...");
@@ -79,8 +81,7 @@ public class LearnTest {
             GroundMLN groundMln = fgm.ground(mln);
             Evidence evidence = parser.parseEvidence(groundMln,evidenceFiles[i]);
             Evidence truth = parser.parseEvidence(groundMln,truthFiles[i]);
-            //GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidPreds, queryPreds, hiddenPreds, false);
-            GroundMLN newGroundMln = groundMln;
+            GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidPreds, queryPreds, hiddenPreds, false);
             GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, truth, 100, numSamples, true, false);
             inferences.add(gs);
 
@@ -95,6 +96,7 @@ public class LearnTest {
             }
             System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time)/1000.0));
             System.out.println("Total number of ground formulas : " + newGroundMln.groundFormulas.size());
+            System.out.println("Total number of ground preds : " + newGroundMln.groundPredicates.size());
 
         }
 
