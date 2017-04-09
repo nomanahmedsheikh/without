@@ -1,4 +1,4 @@
 !.gitignore
-gurobi-library/*
-jcuda-library/*
+gurobi_library/*
+jcuda_library/*
 out/*
