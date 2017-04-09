@@ -2,3 +2,4 @@
 gurobi_library/*
 jcuda_library/*
 out/*
+.idea/
