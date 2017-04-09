@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="jcuda-library">
+    <CLASSES>
+      <root url="file://$PROJECT_DIR$/jcuda-library" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+    <jarDirectory url="file://$PROJECT_DIR$/jcuda-library" recursive="false" />
+  </library>
+</component>
