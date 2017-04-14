@@ -13,6 +13,9 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.*;
 
+import static jcuda.driver.JCudaDriver.*;
+import jcuda.driver.*;
+
 /**
  * Created by Happy on 2/28/17.
  */
@@ -34,6 +37,13 @@ public class InferTest {
     }
 
     public static void main(String[] args) throws FileNotFoundException, CloneNotSupportedException {
+        // Initialize GPU Context
+        cuInit(0);
+        CUdevice device = new CUdevice();
+        cuDeviceGet(device, 0);
+        CUcontext context = new CUcontext();
+        cuCtxCreate(context, 0, device);
+
         parseArgs(args);
         Parser.open_world.addAll(openWorldPreds);
         Parser.closed_world.addAll(closedWorldPreds);
@@ -67,6 +77,9 @@ public class InferTest {
         gs.infer(true, true);
         gs.writeMarginal(writer);
         writer.close();
+
+        //Destroy GPU Context
+        cuCtxDestroy(context);
     }
 
     private static void parseArgs(String[] args) {

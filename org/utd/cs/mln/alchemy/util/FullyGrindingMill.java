@@ -225,8 +225,8 @@ public class FullyGrindingMill {
                             toAdd = true;
                     }
 
-                    if(hidden_preds.contains(gp.symbol.symbol))
-                        toAdd = true;
+                    /*if(hidden_preds.contains(gp.symbol.symbol))
+                        toAdd = true;*/
 
                     if(toAdd)
                     {
