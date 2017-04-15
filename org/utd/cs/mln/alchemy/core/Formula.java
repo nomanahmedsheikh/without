@@ -1,6 +1,7 @@
 package org.utd.cs.mln.alchemy.core;
 
 import org.utd.cs.gm.core.LogDouble;
+import org.utd.cs.mln.alchemy.util.GPUutil;
 
 import java.io.*;
 import java.util.*;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static jcuda.driver.JCudaDriver.*;
+
 import jcuda.*;
 import jcuda.driver.*;
 
@@ -108,8 +110,83 @@ public class Formula {
         }
     }
 
-    private void initDbIndex(Clause clause)
-    {
+    public int countTrueGroundings(State db) {
+        GPUutil gpuUtil = new GPUutil();
+
+        // Load the ptx file.
+        CUmodule module = new CUmodule();
+        assert cuModuleLoad(module, "cu_library/mlnCudaKernels.ptx") == CUresult.CUDA_SUCCESS;
+
+        // Obtain a function pointer to the kernel function
+        CUfunction function = new CUfunction();
+        assert cuModuleGetFunction(function, module, "evalClauseKernel") == CUresult.CUDA_SUCCESS;
+
+        CUdeviceptr d_satArray = new CUdeviceptr();
+        CUdeviceptr d_interpretation = new CUdeviceptr();
+
+        assert cuMemAlloc(d_satArray, totalGroundings * Sizeof.INT) == CUresult.CUDA_SUCCESS;
+        assert cuMemAlloc(d_interpretation, db.getInterpretation().length * Sizeof.POINTER) == CUresult.CUDA_SUCCESS;
+
+        gpuUtil.parallelInit(d_satArray, totalGroundings, 1, maxThreads);
+        assert cuMemcpyHtoD(d_interpretation, Pointer.to(db.getInterpretation()), db.getInterpretation().length * Sizeof.POINTER)
+                == CUresult.CUDA_SUCCESS;
+
+        for (Clause clause : GPUclauses) {
+            CUdeviceptr d_dbIndex = new CUdeviceptr();
+            CUdeviceptr d_predicates = new CUdeviceptr();
+            CUdeviceptr d_valTrue = new CUdeviceptr();
+
+            assert cuMemAlloc(d_dbIndex, clause.dbIndex.length * Sizeof.INT) == CUresult.CUDA_SUCCESS;
+            assert cuMemAlloc(d_predicates, clause.predicates.length * Sizeof.INT) == CUresult.CUDA_SUCCESS;
+            assert cuMemAlloc(d_valTrue, clause.valTrue.length * Sizeof.INT) == CUresult.CUDA_SUCCESS;
+
+            assert cuMemcpyHtoD(d_dbIndex, Pointer.to(clause.dbIndex), clause.dbIndex.length * Sizeof.INT) == CUresult.CUDA_SUCCESS;
+            assert cuMemcpyHtoD(d_predicates, Pointer.to(clause.predicates), clause.predicates.length * Sizeof.INT) == CUresult.CUDA_SUCCESS;
+            assert cuMemcpyHtoD(d_valTrue, Pointer.to(clause.valTrue), clause.valTrue.length * Sizeof.INT) == CUresult.CUDA_SUCCESS;
+
+            Pointer kernelParameters = Pointer.to(
+                    Pointer.to(d_satArray),
+                    Pointer.to(d_interpretation),
+                    Pointer.to(d_dbIndex),
+                    Pointer.to(d_predicates),
+                    Pointer.to(d_valTrue),
+                    Pointer.to(new int[]{clause.totalPreds}),
+                    Pointer.to(new long[]{totalGroundings})
+            );
+
+            int blockSizeX = Math.min(maxThreads, (int) totalGroundings);
+            int gridSizeX = ((int) totalGroundings + blockSizeX - 1) / blockSizeX;
+            System.out.println("Grid size: " + gridSizeX + ", Block size: " + blockSizeX + " :: evalClause");
+
+            cuLaunchKernel(function,
+                    gridSizeX, 1, 1,
+                    blockSizeX, 1, 1,
+                    0, null,
+                    kernelParameters, null
+            );
+            cuCtxSynchronize();
+
+            cuMemFree(d_dbIndex);
+            cuMemFree(d_predicates);
+            cuMemFree(d_valTrue);
+        }
+
+        int[] satArray = new int[(int) totalGroundings];
+        assert cuMemcpyDtoH(Pointer.to(satArray), d_satArray, totalGroundings * Sizeof.INT) == CUresult.CUDA_SUCCESS;
+
+        for (int i : satArray)
+            System.out.print(i + " ");
+        System.out.println();
+
+        int totalSatGroundings = gpuUtil.parallelSum(d_satArray, totalGroundings, maxThreads);
+
+        cuMemFree(d_satArray);
+        cuMemFree(d_interpretation);
+
+        return totalSatGroundings;
+    }
+
+    private void initDbIndex(Clause clause) {
         // Load the ptx file.
         CUmodule module = new CUmodule();
         assert cuModuleLoad(module, "cu_library/mlnCudaKernels.ptx") == CUresult.CUDA_SUCCESS;
@@ -144,8 +221,8 @@ public class Formula {
                 Pointer.to(new long[]{totalGroundings})
         );
 
-        int blockSizeX = Math.min(maxThreads, (int)totalGroundings);
-        int gridSizeX = ((int)totalGroundings + blockSizeX - 1) / blockSizeX;
+        int blockSizeX = Math.min(maxThreads, (int) totalGroundings);
+        int gridSizeX = ((int) totalGroundings + blockSizeX - 1) / blockSizeX;
         System.out.println("Grid size: " + gridSizeX + ", Block size: " + blockSizeX + " :: initDbIndex");
 
         cuLaunchKernel(function,

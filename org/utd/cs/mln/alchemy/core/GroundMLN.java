@@ -12,4 +12,8 @@ public class GroundMLN {
     public List<GroundPredicateSymbol> symbols = new ArrayList<>();
     public List<GroundPredicate> groundPredicates = new ArrayList();
     public List<GroundFormula> groundFormulas = new ArrayList<>();
+
+    public List<GroundPredicateSymbol> allSymbols = new ArrayList<>(); // Stores all symbols (query + evidence)
+    public List<GroundPredicate> allGroundPredicates = new ArrayList(); // Stores all ground predicates (query + evidence)
+    public Evidence evidence;
 }

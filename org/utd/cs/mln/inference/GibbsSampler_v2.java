@@ -52,6 +52,10 @@ public class GibbsSampler_v2 {
         numFormulaTrueCnts = new double[mln.formulas.size()];
         numFormulaTrueSqCnts = new double[mln.formulas.size()];
         allFormulaTrueCnts = new double[numIter][mln.formulas.size()];
+
+        // Test GPU code
+        int trueGroundings = mln.formulas.get(0).countTrueGroundings(state);
+        System.out.print("True Groundings = " + trueGroundings);
     }
 
     private void init()
@@ -82,7 +86,8 @@ public class GibbsSampler_v2 {
         {
             int numPossibleVals = gpList.get(i).numPossibleValues;
             int assignment = getUniformAssignment(numPossibleVals);
-            state.truthVals.set(i,assignment);
+            state.setTruthVals(i, assignment);
+            // state.truthVals.set(i,assignment);
         }
 
     }
@@ -105,7 +110,8 @@ public class GibbsSampler_v2 {
                 for(int k = 0 ; k < numPreds ; k++)
                 {
                     int globalPredIndex = gc.groundPredIndices.get(k);
-                    int currentAssignment = state.truthVals.get(globalPredIndex);
+                    // int currentAssignment = state.truthVals.get(globalPredIndex);
+                    int currentAssignment = state.getTruthVals(globalPredIndex);
                     if (gc.grounPredBitSet.get(k).get(currentAssignment)) {
                         numSatLiterals++;
                     }
@@ -209,8 +215,10 @@ public class GibbsSampler_v2 {
 
     private int performGibbsStep(int gpId, int nextGpId) {
         int assignment = get_probabilistic_assignment(state.wtsPerPredPerVal.get(gpId));
-        int prev_assignment = state.truthVals.get(gpId);
-        state.truthVals.set(gpId, assignment);
+        //int prev_assignment = state.truthVals.get(gpId);
+        int prev_assignment = state.getTruthVals(gpId);
+        //state.truthVals.set(gpId, assignment);
+        state.setTruthVals(gpId, assignment);
         //List<Integer> affectedGndPredIndices = new ArrayList<>();
         if(assignment != prev_assignment)
         {
@@ -337,7 +345,8 @@ public class GibbsSampler_v2 {
                     else if(numSatLiterals == 1)
                     {
                         BitSet b = gc.grounPredBitSet.get(localPredIndex);
-                        if(b.get(state.truthVals.get(i)))
+                        //if(b.get(state.truthVals.get(i)))
+                        if(b.get(state.getTruthVals(i)))
                         {
                             clauseBitSet = (BitSet) b.clone();
                         }
@@ -407,7 +416,8 @@ public class GibbsSampler_v2 {
                         else if(numSatLiterals == 1)
                         {
                             BitSet b = gc.grounPredBitSet.get(localPredIndex);
-                            if(b.get(state.truthVals.get(i)))
+                            //if(b.get(state.truthVals.get(i)))
+                            if(b.get(state.getTruthVals(i)))
                             {
                                 clauseBitSet = (BitSet) b.clone();
                             }
