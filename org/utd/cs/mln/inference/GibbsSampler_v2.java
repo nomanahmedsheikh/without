@@ -17,9 +17,10 @@ public class GibbsSampler_v2 {
     public State state;
     public List<List<Integer>> countNumAssignments = new ArrayList<>(); // For each groundPred in state.mln.groundPreds, stores how many times this groundpred gets assigned to a  particular value. Used for calculating marginal prob
     public List<List<Double>> marginals = new ArrayList<>();
-    public double[][] allFormulaTrueCnts; // allFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample
-    public double[][] oldAllFormulaTrueCnts; // oldAllFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample in the previous iter of learning
-    public double[] numFormulaTrueCnts, numFormulaTrueSqCnts; // sum of true counts of formulas over all samples.
+    public double[][] allFormulaTrueCnts; // allFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample of inference
+    public double[][] oldAllFormulaTrueCnts; // oldAllFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample of inference in the previous iter of learning
+    public double[] numFormulaTrueCnts, numFormulaTrueSqCnts, allLambdaFormulaTrueCnts, oldAllLambdaFormulaTrueCnts; // sum of true counts of formulas over all samples.
+    public double numLambdaTrueCnts;
     boolean trackFormulaCounts = false, saveAllCounts = false, gsdebug=true, calculate_marginal=true;
 
     public int numBurnSteps, numIter;
@@ -52,6 +53,7 @@ public class GibbsSampler_v2 {
         numFormulaTrueCnts = new double[mln.formulas.size()];
         numFormulaTrueSqCnts = new double[mln.formulas.size()];
         allFormulaTrueCnts = new double[numIter][mln.formulas.size()];
+        allLambdaFormulaTrueCnts = new double[numIter];
     }
 
     private void init()
@@ -71,6 +73,7 @@ public class GibbsSampler_v2 {
             numFormulaTrueCnts[i] = 0.0;
             numFormulaTrueSqCnts[i] = 0.0;
         }
+        numLambdaTrueCnts = 0.0;
     }
 
     private void doInitialRandomAssignment() {
@@ -137,7 +140,12 @@ public class GibbsSampler_v2 {
             for(int i =1 ; i <= numBurnSteps; i++)
             {
                 for(int gpId =0; gpId < numGndPreds; gpId++){
-                    performGibbsStep(gpId, (gpId+1)%numGndPreds);
+                    int nextGpId = (gpId+1)%numGndPreds;
+//                    if(state.groundMLN.groundPredicates.get(nextGpId).symbol.symbol.equals("st"))
+//                    {
+//                        System.out.println("stop here....");
+//                    }
+                    performGibbsStep(gpId, nextGpId);
                 }
                 if(i%100 == 0) {
                     System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
@@ -160,12 +168,13 @@ public class GibbsSampler_v2 {
             if(trackFormulaCounts)
             {
                 int numWts = mln.formulas.size();
-                int []numTrueGndings = state.getNumTrueGndings(numWts);
+                double []numTrueGndings = state.getNumTrueGndings(numWts);
                 for (int j = 0; j < numWts; j++) {
                     numFormulaTrueCnts[j] += numTrueGndings[j];
                     allFormulaTrueCnts[i-1][j] += numTrueGndings[j]; //i-1 because iterations start from 1
                     numFormulaTrueSqCnts[j] += numTrueGndings[j]*numTrueGndings[j];
                 }
+                numLambdaTrueCnts += numTrueGndings[numWts];
             }
             if(i%100 == 0) {
                 System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
@@ -195,7 +204,8 @@ public class GibbsSampler_v2 {
 
     public void writeMarginal(PrintWriter writer)
     {
-
+        System.out.println("marginals size : " + marginals.size());
+        System.out.println("state.groundMLN.groundPredicates.size() = " + state.groundMLN.groundPredicates.size());
         for(int i = 0 ; i < marginals.size() ; i++)
         {
             for(int j = 0 ; j < marginals.get(i).size() ; j++)
@@ -217,6 +227,7 @@ public class GibbsSampler_v2 {
              // Markov Blanket for current flipped atom. When flipping an atom, if the value changes then we need to update satWeights for all these M.B predicates.
             //findMarkovBlanket(gpId, assignment, prev_assignment, affectedGndPredIndices);
             updateSatCounts(gpId, assignment, prev_assignment);
+            //updateSatCountsWithWtUpdates(gpId, nextGpId, assignment, prev_assignment);
             //updateWtsForGndPreds(affectedGndPredIndices);
         }
 
@@ -226,6 +237,99 @@ public class GibbsSampler_v2 {
         updateWtsForNextGndPred(nextGpId);
 
         return assignment;
+    }
+
+    private BitSet findFormulaBitSet(GroundPredicate gp, int gpId, GroundFormula gf, int formulaId, int oldGpId)
+    {
+        BitSet formulaBitSet = new BitSet(gp.numPossibleValues);
+        formulaBitSet.flip(0,gp.numPossibleValues);
+        if(gp.groundFormulaIds.containsKey(formulaId))
+        {
+            Set<Integer> tempSet = new HashSet<Integer>();
+            tempSet.addAll(state.falseClausesSet.get(formulaId));
+            tempSet.removeAll(gp.groundFormulaIds.get(formulaId));
+            if(tempSet.size() == 0)
+            {
+                for(int cid : gp.groundFormulaIds.get(formulaId))
+                {
+                    GroundClause gc = gf.groundClauses.get(cid);
+//                    if(!gc.groundPredIndices.contains(oldGpId)){
+//                        continue;
+//                    }
+                    BitSet clauseBitSet = new BitSet(gp.numPossibleValues);
+                    int localPredIndex = gc.globalToLocalPredIndex.get(gpId);
+                    int numSatLiterals = state.numTrueLiterals.get(formulaId).get(cid);
+                    if(numSatLiterals > 1)
+                        clauseBitSet.flip(0,gp.numPossibleValues);
+                    else if(numSatLiterals == 1)
+                    {
+                        BitSet b = gc.grounPredBitSet.get(localPredIndex);
+                        if(b.get(state.truthVals.get(gpId)))
+                        {
+                            clauseBitSet = (BitSet) b.clone();
+                        }
+                        else
+                        {
+                            clauseBitSet.flip(0,gp.numPossibleValues);
+                        }
+                    }
+                    else {
+                        BitSet b = gc.grounPredBitSet.get(localPredIndex);
+                        clauseBitSet = (BitSet) b.clone();
+                    }
+                    formulaBitSet.and(clauseBitSet);
+                }
+            }
+            else
+            {
+                return new BitSet(gp.numPossibleValues);
+            }
+        }
+        return formulaBitSet;
+    }
+
+    private void updateSatCountsWithWtUpdates(int gpId, int nextGpId, int assignment, int prev_assignment) {
+        GroundPredicate gp = state.groundMLN.groundPredicates.get(gpId);
+        GroundPredicate nextGp = state.groundMLN.groundPredicates.get(nextGpId);
+        for(int formulaId : gp.groundFormulaIds.keySet())
+        {
+            GroundFormula gf = state.groundMLN.groundFormulas.get(formulaId);
+            double wt = gf.weight.getValue();
+            BitSet formulaBitSet = findFormulaBitSet(nextGp, nextGpId, gf, formulaId, gpId);
+
+            for(int cid : gp.groundFormulaIds.get(formulaId))
+            {
+                GroundClause gc = state.groundMLN.groundFormulas.get(formulaId).groundClauses.get(cid);
+                int localPredindex = gc.globalToLocalPredIndex.get(gpId);
+                BitSet b = gc.grounPredBitSet.get(localPredindex);
+                int cur_val = b.get(assignment) ? 1 : 0;
+                int prev_val = b.get(prev_assignment) ? 1 : 0;
+                int satDifference = cur_val - prev_val; // numsatLiterals according to new assignment - old assignment
+                int prevSatLiterals = state.numTrueLiterals.get(formulaId).get(cid);
+                int curSatLiterals = prevSatLiterals;
+                curSatLiterals += satDifference;
+                state.numTrueLiterals.get(formulaId).set(cid, curSatLiterals);
+
+                if(curSatLiterals > 0)
+                {
+                    state.falseClausesSet.get(formulaId).remove(cid);
+                }
+                else
+                {
+                    state.falseClausesSet.get(formulaId).add(cid);
+                }
+            }
+
+            BitSet newFormulaBitSet = findFormulaBitSet(nextGp, nextGpId, gf, formulaId, gpId);
+
+            for (int i = 0; i < nextGp.numPossibleValues; i++) {
+                int prevBit = formulaBitSet.get(i) ? 1 : 0;
+                int newBit = newFormulaBitSet.get(i) ? 1 : 0;
+                double diff = (newBit - prevBit)*wt;
+                double temp = state.wtsPerPredPerVal.get(nextGpId).get(i) + diff;
+                state.wtsPerPredPerVal.get(nextGpId).set(i,temp);
+            }
+        }
     }
 
 
@@ -537,8 +641,10 @@ public class GibbsSampler_v2 {
 
     public void resetCnts() {
         Arrays.fill(numFormulaTrueCnts,0.0);
+        numLambdaTrueCnts = 0.0;
         Arrays.fill(numFormulaTrueSqCnts,0.0);
         allFormulaTrueCnts = new double[numIter][mln.formulas.size()];
+        allLambdaFormulaTrueCnts = new double[numIter];
     }
 
     public void saveAllCounts(boolean saveCounts) {
@@ -548,6 +654,8 @@ public class GibbsSampler_v2 {
         saveAllCounts = saveCounts;
         allFormulaTrueCnts = new double[numIter][mln.formulas.size()];
         oldAllFormulaTrueCnts = new double[numIter][mln.formulas.size()];
+        allLambdaFormulaTrueCnts = new double[numIter];
+        oldAllLambdaFormulaTrueCnts = new double[numIter];
     }
 
     public void restoreCnts() {
@@ -566,7 +674,8 @@ public class GibbsSampler_v2 {
                 numFormulaTrueCnts[j] += currCount;
                 numFormulaTrueSqCnts[j] += currCount*currCount;
             }
-
+            allLambdaFormulaTrueCnts[i] = oldAllLambdaFormulaTrueCnts[i];
+            numLambdaTrueCnts += allLambdaFormulaTrueCnts[i];
         }
     }
 
@@ -580,6 +689,7 @@ public class GibbsSampler_v2 {
             {
                 oldAllFormulaTrueCnts[i][j] = allFormulaTrueCnts[i][j];
             }
+            oldAllLambdaFormulaTrueCnts[i] = allLambdaFormulaTrueCnts[i];
         }
     }
 }

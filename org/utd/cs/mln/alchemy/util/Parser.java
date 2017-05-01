@@ -6,11 +6,8 @@ import java.io.FileNotFoundException;
 import java.io.InputStreamReader;
 import java.util.*;
 
-import com.sun.tools.javac.comp.Infer;
 import org.utd.cs.gm.core.LogDouble;
-import org.utd.cs.gm.utility.Pair;
 import org.utd.cs.mln.alchemy.core.*;
-import org.utd.cs.mln.inference.InferTest;
 
 public class Parser {
 	public static final String DOMAINSTART = "#domains";
@@ -78,6 +75,50 @@ public class Parser {
         }
 
         return varTypeToDomain;
+    }
+
+    public Set<String> createEvidenceSet(String evidenceFile) throws FileNotFoundException
+    {
+        Set<String> evidenceSet = new HashSet<String>();
+        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(evidenceFile))));
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine().replaceAll("\\s", "");
+
+            if (line.isEmpty()) {
+                continue;
+            }
+            evidenceSet.add(line);
+
+        }
+        return evidenceSet;
+    }
+
+    public Map<String, Map<List<Integer>, Integer>> createEvidenceTable(String evidenceFile) throws FileNotFoundException {
+        Map<String, Map<List<Integer>,Integer>> evidenceTable = new HashMap<>();
+        Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(evidenceFile))));
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine().replaceAll("\\s", "");
+
+            if (line.isEmpty()) {
+                continue;
+            }
+            String[] predArr = line.split(REGEX_ESCAPE_CHAR + LEFTPRNTH);
+            String symbolName = predArr[0];
+            String[] predArr2 = predArr[1].split(EQUALSTO);
+            String[] termNames = predArr2[0].replace(RIGHTPRNTH, "").split(COMMASEPARATOR);
+            String truthVal = predArr2[1];
+            if(!evidenceTable.containsKey(symbolName))
+            {
+                evidenceTable.put(symbolName, new HashMap<List<Integer>,Integer>());
+            }
+            List<Integer> terms = new ArrayList<>();
+            for(String str : termNames)
+            {
+                terms.add(Integer.parseInt(str));
+            }
+            evidenceTable.get(symbolName).put(terms, Integer.parseInt(truthVal));
+        }
+        return evidenceTable;
     }
 
     private enum ParserState {
@@ -543,7 +584,7 @@ public class Parser {
             {
                 if(sym.symbol.equals(symbolName))
                 {
-                    gp.symbol = new GroundPredicateSymbol(sym.id,symbolName, sym.values, sym.world);
+                    gp.symbol = new GroundPredicateSymbol(sym.id,symbolName, sym.values, sym.world, sym.variable_types);
                     break;
                 }
             }

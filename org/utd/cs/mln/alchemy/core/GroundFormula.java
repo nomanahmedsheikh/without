@@ -16,5 +16,5 @@ public class GroundFormula {
     public int formulaId; // index of this formula in the MLN's list of ground formulas
     public int parentFormulaId; // id of first order formula from which this came
     public LogDouble weight;
-    public boolean isSatisfied;
+    public  LogDouble originalWeight;
 }

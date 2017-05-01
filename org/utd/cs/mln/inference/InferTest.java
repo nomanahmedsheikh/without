@@ -1,16 +1,12 @@
 package org.utd.cs.mln.inference;
 
+import org.utd.cs.gm.core.LogDouble;
 import org.utd.cs.gm.utility.Timer;
-import org.utd.cs.mln.alchemy.core.Evidence;
-import org.utd.cs.mln.alchemy.core.GroundMLN;
-import org.utd.cs.mln.alchemy.core.MLN;
+import org.utd.cs.mln.alchemy.core.*;
 import org.utd.cs.mln.alchemy.util.FullyGrindingMill;
 import org.utd.cs.mln.alchemy.util.Parser;
 
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.util.*;
 
 /**
@@ -18,14 +14,15 @@ import java.util.*;
  */
 public class InferTest {
 
-    private static String mlnFile, outFile, evidenceFile, goldFile;
+    private static String mlnFile, outFile, evidenceFile, softEvidenceFile, goldFile;
     private static boolean queryEvidence=false, trackFormulaCounts = false, calculateMarginal = true;
-    private static int NumBurnIn = 100, NumSamples = 200;
+    private static int NumBurnIn = 100, NumSamples = 500;
     private static List<String> evidPreds, queryPreds = null, openWorldPreds, closedWorldPreds;
 
     private enum ArgsState {
         MlnFile,
         EvidFile,
+        softEvidFile,
         GoldFile,
         OutFile,
         OpenWorld,
@@ -42,20 +39,24 @@ public class InferTest {
         MLN mln = new MLN();
         Parser parser = new Parser(mln);
         parser.parseInputMLNFile(mlnFile);
-        String files[] = new String[2];
-        files[0] = evidenceFile;
-        files[1] = goldFile;
+        String files[] = new String[1];
+        //files[0] = evidenceFile;
+        files[0] = goldFile;
         Map<String, Set<Integer>> varTypeToDomain = parser.collectDomain(files);
         mln.overWriteDomain(varTypeToDomain);
         System.out.println("Creating MRF...");
         long time = System.currentTimeMillis();
         GroundMLN groundMln = fgm.ground(mln);
+        System.out.println("Total number of ground formulas before hadnling evidence : " + groundMln.groundFormulas.size());
         Evidence evidence = parser.parseEvidence(groundMln, evidenceFile);
         Evidence gold = parser.parseEvidence(groundMln, goldFile);
+        //Map<Integer, List<Integer>> featureVectors = fgm.getFeatureVectors(groundMln, mln.formulas.size(), evidence, "person", varTypeToDomain.get("person"), false);
+        //writeFeatures(featureVectors,1,100);
         GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, gold, evidPreds, queryPreds, null, false);
+        newGroundMln = fgm.addSoftEvidence(newGroundMln, softEvidenceFile);
 
         System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
-        System.out.println("Total number of ground formulas : " + groundMln.groundFormulas.size());
+        System.out.println("Total number of ground formulas after hadnling evidence : " + newGroundMln.groundFormulas.size());
 
         GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, gold, NumBurnIn, NumSamples, trackFormulaCounts, calculateMarginal);
         PrintWriter writer = null;
@@ -68,6 +69,22 @@ public class InferTest {
         gs.writeMarginal(writer);
         writer.close();
     }
+
+
+
+    private static void writeFeatures(Map<Integer, List<Integer>> featureVectors, int db, int evidPer) throws FileNotFoundException {
+        PrintWriter pw = new PrintWriter("data/imdb/features/features_infer."+db+"."+evidPer+".txt");
+        for(int constant : featureVectors.keySet())
+        {
+            for(int val : featureVectors.get(constant))
+            {
+                pw.write(val+",");
+            }
+            pw.write(constant+"\n");
+        }
+        pw.close();
+    }
+
 
     private static void parseArgs(String[] args) {
         ArgsState state = ArgsState.Flag;
@@ -89,6 +106,12 @@ public class InferTest {
                 case EvidFile: // if not given, will be empty file
                     evidenceFile = arg;
                     System.out.println("-e = " + arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case softEvidFile: // if not given, will be empty file
+                    softEvidenceFile = arg;
+                    System.out.println("-se = " + arg);
                     state = ArgsState.Flag;
                     continue;
 
@@ -138,6 +161,8 @@ public class InferTest {
                         state = ArgsState.MlnFile;
                     } else if (arg.equals(("-e"))) {
                         state = ArgsState.EvidFile;
+                    } else if (arg.equals(("-se"))) {
+                        state = ArgsState.softEvidFile;
                     } else if (arg.equals(("-g"))) {
                         state = ArgsState.GoldFile;
                     } else if (arg.equals(("-o"))) {
@@ -182,6 +207,9 @@ public class InferTest {
         if (evidenceFile == null) {
             System.out.println("-e = " + evidenceFile);
         }
+        if (softEvidenceFile == null) {
+            System.out.println("-se = " + softEvidenceFile);
+        }
         if (evidPreds == null) {
             evidPreds = new ArrayList<>();
             System.out.println("-ep = " + evidPreds);
@@ -203,6 +231,7 @@ public class InferTest {
 
         private static String manual = "-i\t(necessary) Input mln file\n" +
                 "-e\t(optional) Evidence file\n" +
+                "-se\t(optional) Soft Evidence file\n" +
                 "-g\t(Necessary) gold file\n" +
                 "-o\t(Necessary) output file\n" +
                 "-ep\t(Optional) Comma separated evidence predicates\n" +
