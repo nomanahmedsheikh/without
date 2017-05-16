@@ -9,6 +9,7 @@ import org.utd.cs.mln.alchemy.util.FullyGrindingMill;
 //import org.utd.cs.mln.alchemy.util.GrindingMill;
 import org.utd.cs.mln.alchemy.util.Pair;
 import org.utd.cs.mln.alchemy.util.Parser;
+import org.utd.cs.mln.inference.GibbsSampler;
 import org.utd.cs.mln.inference.GibbsSampler_v2;
 
 import java.io.FileNotFoundException;
@@ -23,12 +24,12 @@ import java.util.*;
 public class LearnTest {
 
     private static final String REGEX_ESCAPE_CHAR = "\\";
-    private static int numIter=100, numSamples=200;
-    private static String mlnFile, outFile;
+    private static int numIter=100, numInferSamples=200, numBurnSamples = 100;
+    private static String mlnFile, outFile, sePredName;
     private static String []evidenceFiles, truthFiles, softEvidenceFiles;
     private static boolean queryEvidence=false, withEM=false, usePrior=false;
     private static int numDb;
-    private static double minllChange = 5; // changed from 10^-5 to 1 so that numIter reduces
+    private static double minllChange = 5, seLambda = 1.0; // minllChange changed from 10^-5 to 1 so that numIter reduces, seLambda is the lambda for softevidence
     private static List<String> evidPreds, hiddenPreds, queryPreds = null, openWorldPreds, closedWorldPreds;
 
     public static long getSeed(){
@@ -45,8 +46,10 @@ public class LearnTest {
         OpenWorld,
         ClosedWorld,
         NumIter,
-        EvidPreds, QueryPreds, HiddenPreds, Flag, NumSamples,
-        MinLLChange
+        EvidPreds, QueryPreds, HiddenPreds, Flag, NumInferSamples,
+        MinLLChange,
+        SELambda,
+        SEPredName
     }
     public static void main(String []args) throws FileNotFoundException, CloneNotSupportedException {
         long totaltime = System.currentTimeMillis();
@@ -63,11 +66,13 @@ public class LearnTest {
         List<MLN> mlns = new ArrayList<>();
         List<GroundMLN> groundMlns = new ArrayList<>();
 
-        List<GibbsSampler_v2> inferences = new ArrayList<>();
-        List<GibbsSampler_v2> inferencesEM = new ArrayList<GibbsSampler_v2>();
+        List<GibbsSampler> inferences = new ArrayList<>();
+        List<GibbsSampler> inferencesEM = new ArrayList<>();
         FullyGrindingMill fgm = new FullyGrindingMill();
         //GrindingMill gm = new GrindingMill();
         List<Evidence> truths = new ArrayList<>();
+
+        // For each training file, create an inference object, which contains whole groundMLN for that domain.
         for(int i = 0 ; i < numDb ; i++)
         {
             MLN mln = new MLN();
@@ -92,9 +97,15 @@ public class LearnTest {
             truths.add(truth);
             //Map<Integer, List<Integer>> featureVectors = fgm.getFeatureVectors(groundMln, mln.formulas.size(), truth, "person", varTypeToDomain.get("person"), true);
             //writeFeatures(featureVectors,i+1);
+
             GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, truth, evidPreds, queryPreds, hiddenPreds, false);
-            newGroundMln = fgm.addSoftEvidence(newGroundMln, softEvidenceFiles[i]);
-            GibbsSampler_v2 gs = new GibbsSampler_v2(mln, newGroundMln, truth, 100, numSamples, true, false);
+
+            // If there is a soft evidence present, then add it.
+            if(softEvidenceFiles != null)
+            {
+                newGroundMln = fgm.addSoftEvidence(newGroundMln, softEvidenceFiles[i], seLambda, sePredName);
+            }
+            GibbsSampler gs = new GibbsSampler(mln, newGroundMln, truth, numBurnSamples, numInferSamples, true, false);
             inferences.add(gs);
 
             if(withEM)
@@ -103,7 +114,7 @@ public class LearnTest {
                 evidEmPreds.addAll(evidPreds);
                 evidEmPreds.addAll(queryPreds);
                 GroundMLN EMNewGroundMln = fgm.handleEvidence(groundMln, Evidence.mergeEvidence(evidence,truth), null, evidEmPreds, null, hiddenPreds, true);
-                GibbsSampler_v2 gsEM = new GibbsSampler_v2(mln, EMNewGroundMln, truth, 100, numSamples, true, false);
+                GibbsSampler gsEM = new GibbsSampler(mln, EMNewGroundMln, truth, numBurnSamples, numInferSamples, true, false);
                 inferencesEM.add(gsEM);
             }
             System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time)/1000.0));
@@ -112,16 +123,10 @@ public class LearnTest {
 
         }
 
-        // Start learning
-        //DiscLearner dl = new DiscLearner(inferences, inferencesEM, numIter, withEM, usePrior, true, 0.005);
-        DiscLearner dl = new DiscLearner(inferences, inferencesEM, numIter, 100.0, minllChange, Double.MAX_VALUE, withEM, true, usePrior, true);
-        Pair<double[],Double> weightsLambda = dl.learnWeights();
 
-        // Run gradient descent to learn lambda
-        // first add soft evidence to grounded mln
+        DiscriminativeLearner dl = new CGLearner(inferences, inferencesEM, numIter, withEM, null, null, usePrior, 100.0, minllChange, Double.MAX_VALUE, true);
+        dl.learnWeights();
 
-        dl.writeWeights(mlnFile, outFile, weightsLambda.first);
-        System.out.println("lambda = " + weightsLambda.second);
         System.out.println("Total Time taken : " + Timer.time((System.currentTimeMillis() - totaltime)/1000.0));
     }
 
@@ -219,13 +224,23 @@ public class LearnTest {
                     state = ArgsState.Flag;
                     continue;
 
-                case NumSamples: // by default, it is 100
-                    numSamples = Integer.parseInt(arg);
+                case NumInferSamples: // by default, it is 100
+                    numInferSamples = Integer.parseInt(arg);
                     state = ArgsState.Flag;
                     continue;
 
                 case MinLLChange: // by default, it is 5
                     minllChange = Double.parseDouble(arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case SELambda: // by default, it is 1.0
+                    seLambda = Double.parseDouble(arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case SEPredName: // by default, it is null
+                    sePredName = arg;
                     state = ArgsState.Flag;
                     continue;
 
@@ -283,13 +298,21 @@ public class LearnTest {
                     {
                         state = ArgsState.NumIter;
                     }
-                    else if(arg.equals(("-NumSamples")))
+                    else if(arg.equals(("-NumInferSamples")))
                     {
-                        state = ArgsState.NumSamples;
+                        state = ArgsState.NumInferSamples;
                     }
                     else if(arg.equals(("-minllchange")))
                     {
                         state = ArgsState.MinLLChange;
+                    }
+                    else if(arg.equals(("-seLambda")))
+                    {
+                        state = ArgsState.SELambda;
+                    }
+                    else if(arg.equals(("-sePred")))
+                    {
+                        state = ArgsState.SEPredName;
                     }
                     else if(arg.equals(("-withEM")))
                     {
@@ -360,9 +383,12 @@ public class LearnTest {
             closedWorldPreds.addAll(evidPreds);
             System.out.println("-cw = " + closedWorldPreds);
         }
+
         System.out.println("-NumIter = " + numIter);
-        System.out.println("-NumSamples = " + numSamples);
+        System.out.println("-NumInferSamples = " + numInferSamples);
         System.out.println("-minllchange = " + minllChange);
+        System.out.println("-seLambda = " + seLambda);
+        System.out.println("-sePred = " + sePredName);
         System.out.println("-queryEvidence = " + queryEvidence);
         System.out.println("-usePrior = " + usePrior);
         System.out.println("-withEM = " + withEM);

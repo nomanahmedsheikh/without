@@ -14,7 +14,7 @@ public class State {
     public List<Set<Integer>> falseClausesSet = new ArrayList<>(); // for each groundformula, stores set of groundClauseIds which are false in this state
     public List<List<Integer>> numTrueLiterals = new ArrayList<>(); // for each groundformula, for each clauseId, stores numSatLiterals in that clause
     public List<List<Double>> wtsPerPredPerVal = new ArrayList<>(); // For each GroundPred, stores sat wts for each value
-    public ArrayList<Integer> lambdaGfIndicesList = new ArrayList<>();
+    public ArrayList<Integer> groundedGfIndicesList = new ArrayList<>(); // Contains indices of those gfs in groundMLN, which were not present in first order mln, but directly added during code. Thses gfs have parentFormulaId as -1.
 
     public State(GroundMLN groundMLN) {
         this.groundMLN  = groundMLN;
@@ -34,6 +34,8 @@ public class State {
             {
                 numTrueLiterals.get(i).add(0);
             }
+            if(groundMLN.groundFormulas.get(i).parentFormulaId == -1)
+                groundedGfIndicesList.add(i);
         }
     }
 
@@ -41,6 +43,7 @@ public class State {
         for(GroundFormula gf : groundMLN.groundFormulas)
         {
             int parentFormulaId = gf.parentFormulaId;
+            // If parent formula doesn't exist, don't do anything
             if(parentFormulaId != -1)
                 gf.weight = new LogDouble(mln.formulas.get(parentFormulaId).weight.getValue(), true);
         }
@@ -59,9 +62,12 @@ public class State {
 
     public double[] getNumTrueGndings(int numWts)
     {
-        double []numTrueGndings = new double[numWts+1]; // last element is storing sum vj_nj for lambda calculation
+        double []numTrueGndings = new double[numWts];
         for(GroundFormula gf : groundMLN.groundFormulas)
         {
+            int parentFormulaId = gf.parentFormulaId;
+            if(parentFormulaId == -1)
+                continue;
             boolean isFormulaSatisfied = true;
             for(GroundClause gc : gf.groundClauses)
             {
@@ -80,11 +86,7 @@ public class State {
             }
             if(isFormulaSatisfied)
             {
-                int parentFormulaId = gf.parentFormulaId;
-                if(parentFormulaId != -1)
-                    numTrueGndings[parentFormulaId]++;
-                else
-                    numTrueGndings[numWts] += gf.weight.getValue();
+                numTrueGndings[numWts] += gf.weight.getValue();
             }
         }
         return numTrueGndings;

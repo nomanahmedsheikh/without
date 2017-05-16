@@ -393,7 +393,12 @@ public class FullyGrindingMill {
         return newGroundMln;
     }
 
-    public static GroundMLN addSoftEvidence(GroundMLN newGroundMln, String softEvidenceFile) throws FileNotFoundException {
+    // Adds softevidence of type st(constant) groundclause to newGroundMLN.
+    // Softevidence file contains triplets : <constant,value,weight>. For example. : <0,1,0.4> means
+    // there is a soft evidence clause st(0)=1 with weight 0.4.
+    // lambda is the constant with which we multiply weight of softevidence.
+    // Since there is no corresponding first order formula for these ground formulas, their parentFormulaId is set to -1.
+    public GroundMLN addSoftEvidence(GroundMLN newGroundMln, String softEvidenceFile, double lambda, String predName) throws FileNotFoundException {
         if (softEvidenceFile == null)
             return newGroundMln;
         Scanner scanner = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(softEvidenceFile))));
@@ -406,10 +411,11 @@ public class FullyGrindingMill {
             int constant = Integer.parseInt(words[0]);
             int value = Integer.parseInt(words[1]);
             double weight = Double.parseDouble(words[2]);
+            weight *= lambda;
             GroundFormula newFormula = new GroundFormula();
             int currentFormulaId = newGroundMln.groundFormulas.size();
             newFormula.formulaId = currentFormulaId;
-            newFormula.parentFormulaId = -1; // we don't need it for inference
+            newFormula.parentFormulaId = -1;
             newFormula.weight = new LogDouble(weight, true);
             newFormula.originalWeight = new LogDouble(weight, true);
             List<GroundClause> newGroundClauseList = new ArrayList<GroundClause>();
@@ -418,7 +424,7 @@ public class FullyGrindingMill {
             newGroundClause.weight = new LogDouble(weight, true);
             for (int i = 0; i < newGroundMln.groundPredicates.size(); i++) {
                 GroundPredicate gp = newGroundMln.groundPredicates.get(i);
-                if (gp.symbol.symbol.equals("st")) {
+                if (gp.symbol.symbol.equals(predName)) {
                     if (gp.terms.get(0).equals(constant)) {
                         BitSet b = new BitSet(gp.numPossibleValues);
                         b.set(value);
@@ -427,6 +433,11 @@ public class FullyGrindingMill {
                         newGroundClause.groundPredIndices.add(i);
                         newGroundClauseList.add(newGroundClause);
                         newFormula.groundPredIndices.add(i);
+                        if(!gp.groundFormulaIds.containsKey(currentFormulaId))
+                        {
+                            gp.groundFormulaIds.put(currentFormulaId, new HashSet<Integer>());
+                        }
+                        gp.groundFormulaIds.get(currentFormulaId).add(newGroundClauseList.size()-1);
                         break;
                     }
                 }

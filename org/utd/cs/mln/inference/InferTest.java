@@ -14,10 +14,11 @@ import java.util.*;
  */
 public class InferTest {
 
-    private static String mlnFile, outFile, evidenceFile, softEvidenceFile, goldFile;
+    private static String mlnFile, outFile, evidenceFile, softEvidenceFile, goldFile, sePredName;;
     private static boolean queryEvidence=false, trackFormulaCounts = false, calculateMarginal = true;
     private static int NumBurnIn = 100, NumSamples = 500;
     private static List<String> evidPreds, queryPreds = null, openWorldPreds, closedWorldPreds;
+    private static double seLambda = 1.0;;
 
     private enum ArgsState {
         MlnFile,
@@ -27,7 +28,9 @@ public class InferTest {
         OutFile,
         OpenWorld,
         ClosedWorld,
-        EvidPreds, QueryPreds, Flag, NumSamples
+        EvidPreds, QueryPreds, Flag, NumSamples,
+        SELambda,
+        SEPredName
     }
 
     public static void main(String[] args) throws FileNotFoundException, CloneNotSupportedException {
@@ -50,10 +53,14 @@ public class InferTest {
         System.out.println("Total number of ground formulas before hadnling evidence : " + groundMln.groundFormulas.size());
         Evidence evidence = parser.parseEvidence(groundMln, evidenceFile);
         Evidence gold = parser.parseEvidence(groundMln, goldFile);
-        //Map<Integer, List<Integer>> featureVectors = fgm.getFeatureVectors(groundMln, mln.formulas.size(), evidence, "person", varTypeToDomain.get("person"), false);
-        //writeFeatures(featureVectors,1,100);
+        Map<Integer, List<Integer>> featureVectors = fgm.getFeatureVectors(groundMln, mln.formulas.size(), evidence, "person", varTypeToDomain.get("person"), false);
+        writeFeatures(featureVectors,2,90);
         GroundMLN newGroundMln = fgm.handleEvidence(groundMln, evidence, gold, evidPreds, queryPreds, null, false);
-        newGroundMln = fgm.addSoftEvidence(newGroundMln, softEvidenceFile);
+        // If there is a soft evidence present, then add it.
+        if(softEvidenceFile != null)
+        {
+            newGroundMln = fgm.addSoftEvidence(newGroundMln, softEvidenceFile, seLambda, sePredName);
+        }
 
         System.out.println("Time taken to create MRF : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
         System.out.println("Total number of ground formulas after hadnling evidence : " + newGroundMln.groundFormulas.size());
@@ -156,6 +163,16 @@ public class InferTest {
                     state = ArgsState.Flag;
                     continue;
 
+                case SELambda: // by default, it is 1.0
+                    seLambda = Double.parseDouble(arg);
+                    state = ArgsState.Flag;
+                    continue;
+
+                case SEPredName: // by default, it is null
+                    sePredName = arg;
+                    state = ArgsState.Flag;
+                    continue;
+
                 case Flag:
                     if (arg.equals("-i")) {
                         state = ArgsState.MlnFile;
@@ -179,7 +196,13 @@ public class InferTest {
                         queryEvidence = true;
                     } else if (arg.equals(("-NumSamples"))) {
                         state = ArgsState.NumSamples;
-                    } else {
+                    } else if(arg.equals(("-seLambda"))) {
+                        state = ArgsState.SELambda;
+                    }
+                    else if(arg.equals(("-sePred"))) {
+                        state = ArgsState.SEPredName;
+                    }
+                    else {
                         System.out.println("Unknown flag " + arg);
                         System.out.println("Following are the allowed flags : ");
                         System.out.println(manual);
@@ -226,6 +249,8 @@ public class InferTest {
         }
 
         System.out.println("-NumSamples = " + NumSamples);
+        System.out.println("-seLambda = " + seLambda);
+        System.out.println("-sePred = " + sePredName);
         System.out.println("-queryEvidence = " + queryEvidence);
     }
 

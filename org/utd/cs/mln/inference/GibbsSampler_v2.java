@@ -53,6 +53,7 @@ public class GibbsSampler_v2 {
         numFormulaTrueCnts = new double[mln.formulas.size()];
         numFormulaTrueSqCnts = new double[mln.formulas.size()];
         allFormulaTrueCnts = new double[numIter][mln.formulas.size()];
+        oldAllFormulaTrueCnts = new double[numIter][mln.formulas.size()];
         allLambdaFormulaTrueCnts = new double[numIter];
     }
 
@@ -559,6 +560,10 @@ public class GibbsSampler_v2 {
         double sum = 0.0;
         for(Double wt : satWeights)
         {
+            if(wt > 100000)
+            {
+                wt = 200.0; // since log(10000000) is 16
+            }
             sum += Math.exp(wt);
         }
         // Now calculate probabilities

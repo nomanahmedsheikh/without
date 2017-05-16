@@ -1,30 +1,38 @@
-
 package org.utd.cs.mln.inference;
 
-import org.utd.cs.gm.core.LogDouble;
-import org.utd.cs.gm.utility.DeepCopyUtil;
-import org.utd.cs.gm.utility.Pair;
+import org.utd.cs.gm.utility.Timer;
 import org.utd.cs.mln.alchemy.core.*;
 
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Created by Happy on 3/1/17.
+ * Created by Happy on 3/2/17.
  */
-/*
 public class GibbsSampler {
-    public State state;
+    public MLN mln;
+    public Evidence truth; // Truth associated with this domain. We need this only during learning to calculate formulaTrainCounts.
+    public State state; // State associated with this domain
     public List<List<Integer>> countNumAssignments = new ArrayList<>(); // For each groundPred in state.mln.groundPreds, stores how many times this groundpred gets assigned to a  particular value. Used for calculating marginal prob
-    int numBurnSteps, numIter;
+    public List<List<Double>> marginals = new ArrayList<>(); // marginals[i][j] is the marginal prob of ground pred i taking value j
+    public double[][] allFormulaTrueCnts; // allFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample of inference. We need to store this so that we can calculate variance of counts among samples, which is required during learning.
+    public double[][] oldAllFormulaTrueCnts; // oldAllFormulaTrueCnts[i][j] is the number of true groundings of jth formula in ith sample of inference in the previous iter of learning
+    public double[] numFormulaTrueCnts, numFormulaTrueSqCnts; // sum of true counts of formulas over all samples. Required for calculating gradient and hessian during learning
 
-    GibbsSampler(GroundMLN groundMLN, int numBurnSteps, int numIter)
+    // trackFormulaCounts = true means calculate allFormulaTrueCnts, oldAllFormulaTrueCnts, numFormulaTrueCnts, numFormulaTrueSqCnts
+    boolean trackFormulaCounts = false, gsdebug=true, calculate_marginal=true;
+
+    public int numBurnSteps, numIter;
+
+    public GibbsSampler(MLN mln, GroundMLN groundMLN, Evidence truth, int numBurnSteps, int numIter, boolean trackFormulaCounts, boolean calculate_marginal)
     {
+        this.mln = mln;
+        this.truth = truth;
         state = new State(groundMLN);
         this.numBurnSteps = numBurnSteps;
         this.numIter = numIter;
+        this.trackFormulaCounts = trackFormulaCounts;
+        this.calculate_marginal = calculate_marginal;
         int numGroundPreds = groundMLN.groundPredicates.size();
 
         // Intialize all counts of assignments to 0.
@@ -33,214 +41,386 @@ public class GibbsSampler {
             int numValues = state.groundMLN.groundPredicates.get(i).numPossibleValues;
             countNumAssignments.add(new ArrayList<>(Collections.nCopies(numValues,0)));
         }
+
+        // Intialize all marginals to 0.
+        for(int i = 0 ; i < numGroundPreds ; i++)
+        {
+            int numValues = state.groundMLN.groundPredicates.get(i).numPossibleValues;
+            marginals.add(new ArrayList<>(Collections.nCopies(numValues,0.0)));
+        }
+
+        numFormulaTrueCnts = new double[mln.formulas.size()];
+        numFormulaTrueSqCnts = new double[mln.formulas.size()];
+        allFormulaTrueCnts = new double[numIter][mln.formulas.size()];
+        oldAllFormulaTrueCnts = new double[numIter][mln.formulas.size()];
     }
 
+    // Randomly initialize the state, and set the state's variables according to that random state.
     private void init()
     {
+        if(gsdebug)
+            System.out.println("Inference initialization");
+
+        // set state->truthVals randomly
         doInitialRandomAssignment();
         initializeNumSatValues(); // Initialize numFalseClauseIds and numSatLiterals in the clauses
+        ArrayList<Integer> allGndPredIndices = new ArrayList<>();
+        int numGndPreds = state.groundMLN.groundPredicates.size();
+        for(int i = 0 ; i < numGndPreds ; i++)
+        {
+            allGndPredIndices.add(i);
+        }
+        // Set state->wtsPerPredVal for all the ground preds
+        updateWtsForGndPreds(allGndPredIndices);
+        for (int i = 0; i < numFormulaTrueCnts.length; i++) {
+            numFormulaTrueCnts[i] = 0.0;
+            numFormulaTrueSqCnts[i] = 0.0;
+        }
+        int numGroundPreds = countNumAssignments.size();
+        countNumAssignments.clear();
+        marginals.clear();
+        // Intialize all counts of assignments to 0.
+        for(int i = 0 ; i < numGroundPreds ; i++)
+        {
+            int numValues = state.groundMLN.groundPredicates.get(i).numPossibleValues;
+            countNumAssignments.add(new ArrayList<>(Collections.nCopies(numValues,0)));
+        }
+
+        // Intialize all marginals to 0.
+        for(int i = 0 ; i < numGroundPreds ; i++)
+        {
+            int numValues = state.groundMLN.groundPredicates.get(i).numPossibleValues;
+            marginals.add(new ArrayList<>(Collections.nCopies(numValues,0.0)));
+        }
     }
 
     private void doInitialRandomAssignment() {
         GroundMLN gmln = state.groundMLN;
         List<GroundPredicate> gpList = gmln.groundPredicates;
         int numGps = gpList.size();
+
         for(int i = 0 ; i < numGps ; i++)
         {
             int numPossibleVals = gpList.get(i).numPossibleValues;
             int assignment = getUniformAssignment(numPossibleVals);
             state.truthVals.set(i,assignment);
         }
+
     }
 
-    // According to present state, initialize state.numFalseClauseTrueLiterals
+    // According to present state, initialize state.numFalseClausesSet and state.numTrueLiterals
     private void initializeNumSatValues() {
         GroundMLN gm = state.groundMLN;
         int numFormulas = state.groundMLN.groundFormulas.size();
         for(int i = 0 ; i < numFormulas ; i++)
         {
             GroundFormula gf = gm.groundFormulas.get(i);
-            int numFalseClauses = 0;
+            Set<Integer> falseClauseIds = new HashSet<>();
             int numClauses = gf.groundClauses.size();
             for(int j = 0 ; j < numClauses ; j++)
             {
                 GroundClause gc = gf.groundClauses.get(j);
+                int numPreds = gc.groundPredIndices.size();
+                //int numAtoms = gc.groundAtoms.size();
                 int numSatLiterals = 0;
-                int numAtoms = gc.groundAtoms.size();
-                for(int k = 0 ; k < numAtoms ; k++)
+                for(int k = 0 ; k < numPreds ; k++)
                 {
-                    GroundAtom ga = gc.groundAtoms.get(k);
-                    // TODO : INEFFICIENT, instead we could store reverse index in each groundpredicate which tells at what index this groundpredicate occurs in mln's list of groundpredicates
-                    int gndPredIndex = gm.groundPredicates.indexOf(ga.groundPredicate);
-                    int currentAssignment = state.truthVals.get(gndPredIndex);
-                    // If current atom is true literal
-                    if((ga.valTrue == currentAssignment) != ga.sign)
-                    {
+                    int globalPredIndex = gc.groundPredIndices.get(k);
+                    int currentAssignment = state.truthVals.get(globalPredIndex);
+                    if (gc.grounPredBitSet.get(k).get(currentAssignment)) {
                         numSatLiterals++;
                     }
-                } // end of clause
-
+                }
+                state.numTrueLiterals.get(i).set(j, numSatLiterals);
                 if(numSatLiterals == 0)
                 {
-                    numFalseClauses++;
+                    falseClauseIds.add(j);
                 }
-                state.numFalseClauseTrueLiterals.get(i).set(j+1,numSatLiterals); //j+1 because first entry in this list tells about numFalseClauses.
-            }// end of formula
-            state.numFalseClauseTrueLiterals.get(i).set(0,numFalseClauses);
-        }
+            } // end of clause
+            state.falseClausesSet.set(i,falseClauseIds);
+        }// end of formula
     }
 
-
-    public void infer(String out_file)
+    public void infer(boolean burningIn, boolean isInit)
     {
-        init();
+        if(isInit)
+            init();
 
-        // Burning in
         int numGndPreds = state.groundMLN.groundPredicates.size();
-        System.out.println("Burning in started...");
-        long time = System.currentTimeMillis();
-        for(int iter = 0 ; iter < numBurnSteps ; iter++)
+
+        if(burningIn)
         {
-            for(int gndPredIndex = 0 ; gndPredIndex < numGndPreds ; gndPredIndex++)
+            // Burning in
+
+            System.out.println("Burning in started...");
+            long time = System.currentTimeMillis();
+
+            for(int i =1 ; i <= numBurnSteps; i++)
             {
-                performGibbsStep(gndPredIndex);
+                for(int gpId =0; gpId < numGndPreds; gpId++){
+                    int nextGpId = (gpId+1)%numGndPreds;
+                    performGibbsStep(gpId, nextGpId);
+                }
+                if(i%100 == 0) {
+                    System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
+                }
             }
-            if(iter%1 == 0) {
-                System.out.println("iter : " + iter + ", Elapsed Time : " + (System.currentTimeMillis() - time) / 1000.0 + " s");
-            }
+
+            System.out.println("Burning completed in : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
 
         }
-        System.out.println("Time taken to burn in : " + (System.currentTimeMillis() - time)/1000.0 + " s");
 
-        // After burning in
         System.out.println("Gibbs sampling started...");
-        time = System.currentTimeMillis();
-
-        for(int iter = 0 ; iter < numIter ; iter++)
+        long time = System.currentTimeMillis();
+        for(int i =1 ; i <= numIter; i++)
         {
-            for(int gndPredIndex = 0 ; gndPredIndex < numGndPreds ; gndPredIndex++)
-            {
-                int assignment = performGibbsStep(gndPredIndex);
-                // TODO : This is wrong here, we need to increment counter for every groundPred, but that would be costly, is there an efficient way for this ?
-                countNumAssignments.get(gndPredIndex).set(assignment, countNumAssignments.get(gndPredIndex).get(assignment) + 1);
+            for(int gpId =0; gpId < numGndPreds; gpId++){
+                int assignment = performGibbsStep(gpId, (gpId+1)%numGndPreds);
+                if(calculate_marginal)
+                    countNumAssignments.get(gpId).set(assignment, countNumAssignments.get(gpId).get(assignment)+1);
             }
-            //System.out.println(assignment);
-            // Increment the count of assignments
-
+            if(trackFormulaCounts)
+            {
+                int numWts = mln.formulas.size();
+                double []numTrueGndings = state.getNumTrueGndings(numWts);
+                for (int j = 0; j < numWts; j++) {
+                    numFormulaTrueCnts[j] += numTrueGndings[j];
+                    allFormulaTrueCnts[i-1][j] += numTrueGndings[j]; //i-1 because iterations start from 1
+                    numFormulaTrueSqCnts[j] += numTrueGndings[j]*numTrueGndings[j];
+                }
+            }
+            if(i%100 == 0) {
+                System.out.println("iter : " + i + ", Elapsed Time : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
+            }
         }
-        calculateAndWriteMarginal(countNumAssignments, numIter, out_file);
-        System.out.println("Gibbs sampling completed in : " + (System.currentTimeMillis() - time)/1000.0 + " s");
+
+        if(calculate_marginal)
+        {
+            for(int i = 0 ; i < numGndPreds ; i++)
+            {
+                double sum = 0.0;
+                int numValues = countNumAssignments.get(i).size();
+                for(int j = 0 ; j < numValues ; j++)
+                {
+                    sum += countNumAssignments.get(i).get(j);
+                }
+                for(int j = 0 ; j < numValues ; j++)
+                {
+                    double marg = countNumAssignments.get(i).get(j)/sum;
+                    marginals.get(i).set(j,marg);
+                }
+            }
+        }
+
+        System.out.println("Gibbs Sampling completed in : " + Timer.time((System.currentTimeMillis() - time) / 1000.0));
     }
 
-    private int performGibbsStep(int gndPredIndex)
+    public void writeMarginal(PrintWriter writer)
     {
-        GroundPredicate gp = state.groundMLN.groundPredicates.get(gndPredIndex);
-        int currentVal = state.truthVals.get(gndPredIndex);
-        // First find sat weight for each of the value of this groundPredicate
-        List<Double> satWeights = new ArrayList<>(Collections.nCopies(gp.numPossibleValues,0.0));
-        // For each value, we will also store numFalseClauseTrueLiterals, so that when we flip, we can update state's numFalseClauseTrueLiterals attribute
-        List<List<List<Integer>>> allNumFalseClauseTrueLiterals = new ArrayList<>();
-        for(int val = 0 ; val < gp.numPossibleValues ; val++)
+        System.out.println("marginals size : " + marginals.size());
+        System.out.println("state.groundMLN.groundPredicates.size() = " + state.groundMLN.groundPredicates.size());
+        for(int i = 0 ; i < marginals.size() ; i++)
         {
-            //TODO : May be inefficient copying whole list, instead just copy for those formulas in which this grndPred occurs
-            allNumFalseClauseTrueLiterals.add((List<List<Integer>>) DeepCopyUtil.copy(state.numFalseClauseTrueLiterals));
-            double satWeight = getSatWeight(gp, val, currentVal, allNumFalseClauseTrueLiterals.get(allNumFalseClauseTrueLiterals.size()-1));
-            satWeights.set(val, satWeight);
+            for(int j = 0 ; j < marginals.get(i).size() ; j++)
+            {
+                double marginal = marginals.get(i).get(j);
+                writer.println(state.groundMLN.groundPredicates.get(i) + "=" + j + " " + marginal);
+            }
         }
 
-        // Now get an assignment according to satWeights probability distribution
-        int assignment = get_probabilistic_assignment(satWeights);
-        state.truthVals.set(gndPredIndex,assignment);
-        state.numFalseClauseTrueLiterals = (List<List<Integer>>)DeepCopyUtil.copy(allNumFalseClauseTrueLiterals.get(assignment));
-        System.gc();
+    }
+
+    private int performGibbsStep(int gpId, int nextGpId) {
+        int assignment = get_probabilistic_assignment(state.wtsPerPredPerVal.get(gpId));
+        int prev_assignment = state.truthVals.get(gpId);
+        state.truthVals.set(gpId, assignment);
+        if(assignment != prev_assignment)
+        {
+             // When flipping an atom, if the value changes then we need to update satWeights for all these M.B predicates of this gpId.
+            updateSatCounts(gpId, assignment, prev_assignment);
+
+        }
+
+        updateWtsForNextGndPred(nextGpId);
+
         return assignment;
     }
 
-    private double getSatWeight(GroundPredicate gp, int val, int currentVal, List<List<Integer>> tempNumFalseClauseTrueLiterals)
-    {
-        double wt = 0.0;
-        // Loop over all the formulas in which this predicate occurs
-        Map<Integer, Set<Integer>> gfIds = gp.groundFormulaIds;
-        for(int formulaId : gfIds.keySet())
+
+    private void updateSatCounts(int gpId, int assignment, int prev_assignment) {
+        GroundPredicate gp = state.groundMLN.groundPredicates.get(gpId);
+        for(int formulaId : gp.groundFormulaIds.keySet())
         {
-            boolean sat = checkFormulaSatisfiability(gp, gfIds, formulaId, val, currentVal, tempNumFalseClauseTrueLiterals);
-            if(sat)
+            for(int cid : gp.groundFormulaIds.get(formulaId))
             {
-                wt += state.groundMLN.groundFormulas.get(formulaId).weight.getValue();
-            }
-        }
-        return wt;
-    }
+                GroundClause gc = state.groundMLN.groundFormulas.get(formulaId).groundClauses.get(cid);
+                int localPredindex = gc.globalToLocalPredIndex.get(gpId);
+                BitSet b = gc.grounPredBitSet.get(localPredindex);
+                int cur_val = b.get(assignment) ? 1 : 0;
+                int prev_val = b.get(prev_assignment) ? 1 : 0;
+                int satDifference = cur_val - prev_val; // numsatLiterals according to new assignment - old assignment
+                int curSatLiterals = state.numTrueLiterals.get(formulaId).get(cid);
+                curSatLiterals += satDifference;
+                state.numTrueLiterals.get(formulaId).set(cid, curSatLiterals);
 
-    private boolean checkFormulaSatisfiability(GroundPredicate gp, Map<Integer, Set<Integer>> gfIds, int formulaId,
-                                               int val, int currentVal, List<List<Integer>> tempNumFalseClauseTrueLiterals)
-    {
-        int numFalseClauses = state.numFalseClauseTrueLiterals.get(formulaId).get(0);
-        for(int cid : gfIds.get(formulaId))
-        {
-            boolean sat = checkClauseSatisfiability(gp, formulaId, cid, val, currentVal, tempNumFalseClauseTrueLiterals);
-            boolean currentSat = state.numFalseClauseTrueLiterals.get(formulaId).get(cid+1) > 0;
-            if(sat == currentSat)
-                continue;
-            else if(sat)
-                numFalseClauses--;
-            else
-                numFalseClauses++;
-        }
-        tempNumFalseClauseTrueLiterals.get(formulaId).set(0,numFalseClauses);
-        if(numFalseClauses == 0)
-            return true;
-        else
-            return false;
-    }
-
-    private boolean checkClauseSatisfiability(GroundPredicate gp, int formulaId, int cid, int val,
-                                              int currentVal, List<List<Integer>> tempNumFalseClauseTrueLiterals)
-    {
-        int numSatLiterals = state.numFalseClauseTrueLiterals.get(formulaId).get(cid+1);
-        GroundClause gc = state.groundMLN.groundFormulas.get(formulaId).groundClauses.get(cid);
-        for(GroundAtom ga : gc.groundAtoms)
-        {
-            // TODO : May be inefficient, may be just check if symbols match
-            if(ga.groundPredicate.equals(gp))
-            {
-                boolean sat = (ga.valTrue == val) != ga.sign;
-                boolean currentSat = (ga.valTrue == currentVal) != ga.sign;
-                if(sat == currentSat)
-                    continue;
-                else if(sat)
-                    numSatLiterals++;
-                else
-                    numSatLiterals--;
-            }
-        }
-        tempNumFalseClauseTrueLiterals.get(formulaId).set(cid+1,numSatLiterals);
-        if(numSatLiterals > 0)
-            return true;
-        else
-            return false;
-    }
-
-
-    private void calculateAndWriteMarginal(List<List<Integer>> countNumAssignments, int numIter, String out_file)
-    {
-        try
-        {
-            PrintWriter writer = new PrintWriter(out_file);
-            for(int i = 0 ; i < countNumAssignments.size() ; i++)
-            {
-                for(int j = 0 ; j < countNumAssignments.get(i).size() ; j++)
+                if(curSatLiterals > 0)
                 {
-                    double marginal = countNumAssignments.get(i).get(j)/(double)numIter;
-                    writer.println(state.groundMLN.groundPredicates.get(i) + " = " + j + " " + marginal);
+                    state.falseClausesSet.get(formulaId).remove(cid);
+                }
+                else
+                {
+                    state.falseClausesSet.get(formulaId).add(cid);
                 }
             }
-            writer.close();
-        }
-        catch(IOException e) {
+
         }
     }
 
+    public void updateWtsForNextGndPred(int i) {
+
+        List<GroundPredicate> groundPredicates = state.groundMLN.groundPredicates;
+        GroundPredicate gp = groundPredicates.get(i);
+        int numPossibleVals =gp.numPossibleValues;
+        double wtsPerVal[] = new double[numPossibleVals];
+        Map<Integer, Set<Integer>> formulaIds = gp.groundFormulaIds;
+
+        for(Integer formulaId : formulaIds.keySet())
+        {
+            GroundFormula gf = state.groundMLN.groundFormulas.get(formulaId);
+            double wt = gf.weight.getValue();
+            Set<Integer> tempSet = new HashSet<Integer>();
+            tempSet.addAll(state.falseClausesSet.get(formulaId));
+            tempSet.removeAll(formulaIds.get(formulaId));
+            BitSet formulaBitSet = new BitSet(numPossibleVals);
+            formulaBitSet.flip(0,numPossibleVals);
+
+            // If there is a clause which is false, and doesn't contain gp, then this formula is always false
+            if(tempSet.size() == 0)
+            {
+
+                for(Integer cid : formulaIds.get(formulaId))
+                {
+                    BitSet clauseBitSet = new BitSet(numPossibleVals);
+                    GroundClause gc = gf.groundClauses.get(cid);
+                    if(!gc.globalToLocalPredIndex.containsKey(i))
+                    {
+                        System.out.println("problem....");
+                    }
+                    int localPredIndex = gc.globalToLocalPredIndex.get(i);
+                    int numSatLiterals = state.numTrueLiterals.get(formulaId).get(cid);
+                    if(numSatLiterals > 1)
+                        clauseBitSet.flip(0,numPossibleVals);
+                    else if(numSatLiterals == 1)
+                    {
+                        BitSet b = gc.grounPredBitSet.get(localPredIndex);
+                        if(b.get(state.truthVals.get(i)))
+                        {
+                            clauseBitSet = (BitSet) b.clone();
+                        }
+                        else
+                        {
+                            clauseBitSet.flip(0,numPossibleVals);
+                        }
+                    }
+                    else {
+                        BitSet b = gc.grounPredBitSet.get(localPredIndex);
+                        clauseBitSet = (BitSet) b.clone();
+                    }
+                    formulaBitSet.and(clauseBitSet);
+                }// end clauses loop
+
+                int startIndex = 0;
+                while(startIndex < numPossibleVals)
+                {
+                    int index = formulaBitSet.nextSetBit(startIndex);
+                    if(index == -1)
+                        break;
+                    wtsPerVal[index] += wt;
+                    startIndex = index+1;
+                }
+            }// end if condition
+
+        } //end formulas loops
+
+        List<Double> tempWts = new ArrayList<>();
+        for(double d : wtsPerVal)
+        {
+            tempWts.add(d);
+        }
+        state.wtsPerPredPerVal.set(i, tempWts);
+    }
+
+    public void updateWtsForGndPreds(List<Integer> affectedGndPredIndices) {
+        List<GroundPredicate> groundPredicates = state.groundMLN.groundPredicates;
+        for(Integer i : affectedGndPredIndices)
+        {
+            GroundPredicate gp = groundPredicates.get(i);
+            int numPossibleVals =gp.numPossibleValues;
+            double wtsPerVal[] = new double[numPossibleVals];
+            Map<Integer, Set<Integer>> formulaIds = gp.groundFormulaIds;
+
+            for(Integer formulaId : formulaIds.keySet())
+            {
+                GroundFormula gf = state.groundMLN.groundFormulas.get(formulaId);
+                double wt = gf.weight.getValue();
+                Set<Integer> tempSet = new HashSet<Integer>();
+                tempSet.addAll(state.falseClausesSet.get(formulaId));
+                tempSet.removeAll(formulaIds.get(formulaId));
+                BitSet formulaBitSet = new BitSet(numPossibleVals);
+                formulaBitSet.flip(0,numPossibleVals);
+
+                // If there is a clause which is false, and not doesn't contain gp, then this formula is always false
+                if(tempSet.size() == 0)
+                {
+
+                    for(Integer cid : formulaIds.get(formulaId))
+                    {
+                        BitSet clauseBitSet = new BitSet(numPossibleVals);
+                        GroundClause gc = gf.groundClauses.get(cid);
+                        int localPredIndex = gc.globalToLocalPredIndex.get(i);
+                        int numSatLiterals = state.numTrueLiterals.get(formulaId).get(cid);
+                        if(numSatLiterals > 1)
+                            clauseBitSet.flip(0,numPossibleVals);
+                        else if(numSatLiterals == 1)
+                        {
+                            BitSet b = gc.grounPredBitSet.get(localPredIndex);
+                            if(b.get(state.truthVals.get(i)))
+                            {
+                                clauseBitSet = (BitSet) b.clone();
+                            }
+                            else
+                            {
+                                clauseBitSet.flip(0,numPossibleVals);
+                            }
+                        }
+                        else {
+                            BitSet b = gc.grounPredBitSet.get(localPredIndex);
+                            clauseBitSet = (BitSet) b.clone();
+                        }
+                        formulaBitSet.and(clauseBitSet);
+                    }// end clauses loop
+
+                    int startIndex = 0;
+                    while(startIndex < numPossibleVals)
+                    {
+                        int index = formulaBitSet.nextSetBit(startIndex);
+                        if(index == -1)
+                            break;
+                        wtsPerVal[index] += wt;
+                        startIndex = index+1;
+                    }
+                }// end if condition
+
+            } //end formulas loops
+
+            List<Double> tempWts = new ArrayList<>();
+            for(double d : wtsPerVal)
+            {
+                tempWts.add(d);
+            }
+            state.wtsPerPredPerVal.set(i, tempWts);
+        }
+    }
 
     // Given a list of sat weights for each possible assignment, find assignment probabilistically
     private int get_probabilistic_assignment(List<Double> satWeights)
@@ -252,6 +432,10 @@ public class GibbsSampler {
         double sum = 0.0;
         for(Double wt : satWeights)
         {
+//            if(wt > 100000)
+//            {
+//                wt = 200.0; // since log(10000000) is 16
+//            }
             sum += Math.exp(wt);
         }
         // Now calculate probabilities
@@ -265,7 +449,8 @@ public class GibbsSampler {
 
     private int getRandomAssignment(List<Double> probabilities)
     {
-        double p = Math.random();
+        Random rand = new Random();
+        double p = rand.nextDouble();
         double cumulativeProbability = 0.0;
         for (int i = 0 ; i < probabilities.size() ; i++) {
             cumulativeProbability += probabilities.get(i);
@@ -276,9 +461,92 @@ public class GibbsSampler {
         return probabilities.size()-1;
     }
 
-
     private int getUniformAssignment(int numPossibleVals) {
-        return ThreadLocalRandom.current().nextInt(0,numPossibleVals);
+        Random rand = new Random();
+        return rand.nextInt(numPossibleVals);
+    }
+
+    // After every iteration of learning, reset the counts.
+    public void resetCnts() {
+        Arrays.fill(numFormulaTrueCnts,0.0);
+        Arrays.fill(numFormulaTrueSqCnts,0.0);
+        allFormulaTrueCnts = new double[numIter][mln.formulas.size()];
+    }
+
+    // If learning iteration is unsuccessful, and we need to backtrack, then restore all the counts, with the help of
+    // oldAllFormulaTrueCnts
+    public void restoreCnts() {
+        resetCnts();
+        System.out.println("Restoring counts...");
+        for (int i = 0; i < oldAllFormulaTrueCnts.length; i++)
+        {
+            int numcounts = oldAllFormulaTrueCnts[i].length;
+            for (int j = 0; j < numcounts; j++)
+            {
+                allFormulaTrueCnts[i][j] = oldAllFormulaTrueCnts[i][j];
+                double currCount = allFormulaTrueCnts[i][j];
+                numFormulaTrueCnts[j] += currCount;
+                numFormulaTrueSqCnts[j] += currCount*currCount;
+            }
+        }
+    }
+
+    // If learning iteration is successful, then store allFormulaTrueCnts to oldAllFormulaTrueCnts
+    public void saveCnts() {
+        for (int i = 0; i < allFormulaTrueCnts.length; i++)
+        {
+            int numcounts = allFormulaTrueCnts[i].length;
+            for (int j = 0; j < numcounts; j++)
+            {
+                oldAllFormulaTrueCnts[i][j] = allFormulaTrueCnts[i][j];
+            }
+        }
+    }
+
+    public double[] getHessianVectorProduct(double[] v) {
+        int numFormulas = mln.formulas.size();
+        int numSamples = numIter;
+
+        // For minimizing the negative log likelihood,
+        // the ith element of H v is:
+        //   E[n_i * vn] - E[n_i] E[vn]
+        // where n is the vector of all clause counts
+        // and vn is the dot product of v and n.
+
+        double sumVN = 0;
+        double []sumN = new double[numFormulas];
+        double []sumNiVN = new double[numFormulas];
+
+        // Get sufficient statistics from each sample,
+        // so we can compute expectations
+        for (int s = 0; s < numSamples; s++)
+        {
+            double[] n = allFormulaTrueCnts[s];
+
+            // Compute v * n
+            double vn = 0;
+            for (int i = 0; i < numFormulas; i++)
+                vn += v[i] * n[i];
+
+            // Tally v*n, n_i, and n_i v*n
+            sumVN += vn;
+            for (int i = 0; i < numFormulas; i++)
+            {
+                sumN[i]    += n[i];
+                sumNiVN[i] += n[i] * vn;
+            }
+        }
+
+        // Compute actual product from the sufficient stats
+        double []product = new double[numFormulas];
+        for (int formulano = 0; formulano < numFormulas; formulano++)
+        {
+            double E_vn = sumVN/numSamples;
+            double E_ni = sumN[formulano]/numSamples;
+            double E_nivn = sumNiVN[formulano]/numSamples;
+            product[formulano] = E_nivn - E_ni * E_vn;
+        }
+
+        return product;
     }
 }
-*/

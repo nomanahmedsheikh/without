@@ -553,7 +553,7 @@ public class DiscLearner {
                     if(parentFormulaId == -1)
                     {
                         lambdaTrainCnts[i] += gf.weight.getValue();
-                        inferences.get(i).state.lambdaGfIndicesList.add(gfId);
+                        inferences.get(i).state.groundedGfIndicesList.add(gfId);
 
                     }
                     else{
@@ -571,7 +571,7 @@ public class DiscLearner {
             Arrays.fill(lambdaTrainCnts,0.0);
             GroundMLN gm = inferences.get(i).state.groundMLN;
             Evidence truth = inferences.get(i).truth;
-            for(int gfId : inferences.get(i).state.lambdaGfIndicesList)
+            for(int gfId : inferences.get(i).state.groundedGfIndicesList)
             {
                 GroundFormula gf = gm.groundFormulas.get(gfId);
                 boolean isFormulaSatisfied = true;
