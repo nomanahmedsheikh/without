@@ -86,7 +86,7 @@ public class State {
             }
             if(isFormulaSatisfied)
             {
-                numTrueGndings[numWts] += gf.weight.getValue();
+                numTrueGndings[parentFormulaId] += gf.weight.getValue();
             }
         }
         return numTrueGndings;

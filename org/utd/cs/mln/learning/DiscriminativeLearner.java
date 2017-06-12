@@ -51,7 +51,7 @@ public abstract class DiscriminativeLearner {
                 GroundFormula gf = gm.groundFormulas.get(gfId);
                 int parentFormulaId = gf.parentFormulaId;
                 // If parent formula doesn't exist for this ground formula, then don't do anything.
-                if(parentFormulaId != -1)
+                if(parentFormulaId == -1)
                     continue;
                 boolean isFormulaSatisfied = true;
                 for(GroundClause gc : gf.groundClauses)

@@ -1,3 +1,3 @@
 Manifest-Version: 1.0
-Main-Class: org.utd.cs.mln.inference.InferTest
+Main-Class: org.utd.cs.mln.learning.LearnTest
 
